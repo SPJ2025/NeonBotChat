@@ -54,6 +54,8 @@ def init_db() -> None:
             type        TEXT NOT NULL DEFAULT 'group',  -- 'group' | 'direct'
             avatar_url  TEXT DEFAULT '',
             last_message TEXT DEFAULT '',
+            last_sender TEXT DEFAULT '',
+            last_direction TEXT DEFAULT '',
             last_message_time REAL DEFAULT 0,
             unread_count INTEGER DEFAULT 0,
             created_at  TEXT DEFAULT (datetime('now','localtime'))
@@ -70,6 +72,8 @@ def init_db() -> None:
             direction       TEXT NOT NULL DEFAULT 'incoming',  -- 'incoming' | 'outgoing'
             msg_id          TEXT DEFAULT '',      -- QQ 消息 ID
             attachments     TEXT DEFAULT '[]',    -- JSON: 附件列表
+            member_role     TEXT DEFAULT '',      -- 群角色
+            recalled        INTEGER DEFAULT 0,    -- 是否已撤回
             timestamp       TEXT DEFAULT (datetime('now','localtime')),
             FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
         );
@@ -161,8 +165,8 @@ async def get_conversations(limit: int = 50) -> list[dict]:
     def _do():
         conn = get_db()
         rows = conn.execute("""
-            SELECT id, name, type, avatar_url, last_message, unread_count,
-                   datetime(last_message_time) as last_time
+            SELECT id, name, type, avatar_url, last_message, last_sender, last_direction,
+                   unread_count, datetime(last_message_time) as last_time
             FROM conversations
             ORDER BY last_message_time DESC
             LIMIT ?
@@ -193,24 +197,27 @@ async def save_message(
     msg_type: int = 0,
     sender_avatar: str = "",
     attachments: str = "[]",
+    member_role: str = "",
 ) -> dict:
     def _do():
         conn = get_db()
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         cur = conn.execute("""
             INSERT INTO messages (conversation_id, sender_openid, sender_name,
-                                  sender_avatar, content, msg_type, direction, msg_id, attachments, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (conversation_id, sender_openid, sender_name, sender_avatar, content, msg_type, direction, msg_id, attachments, now))
+                                  sender_avatar, content, msg_type, direction, msg_id, attachments, member_role, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (conversation_id, sender_openid, sender_name, sender_avatar, content, msg_type, direction, msg_id, attachments, member_role, now))
         msg_pk = cur.lastrowid
 
         # 更新会话摘要
         conn.execute("""
             UPDATE conversations
             SET last_message = ?,
+                last_sender = ?,
+                last_direction = ?,
                 last_message_time = julianday('now')
             WHERE id = ?
-        """, (content[:200], conversation_id))
+        """, (content[:200], sender_name, direction, conversation_id))
 
         # 如果会话不存在，自动创建（群聊首次消息）
         if conn.execute("SELECT COUNT(*) FROM conversations WHERE id = ?", (conversation_id,)).fetchone()[0] == 0:
@@ -269,6 +276,26 @@ async def delete_messages_batch(msg_ids: list[int]) -> list[int]:
         conn = get_db()
         placeholders = ",".join("?" * len(msg_ids))
         conn.execute(f"DELETE FROM messages WHERE id IN ({placeholders})", msg_ids)
+        # 刷新受影响会话的预览
+        conv_ids = conn.execute(
+            f"SELECT DISTINCT conversation_id FROM messages WHERE id IN ({placeholders})", msg_ids
+        ).fetchall()
+        # 批量删除后再逐会话更新
+        for conv_id in set(row[0] for row in conv_ids):
+            latest = conn.execute(
+                "SELECT content, sender_name, direction FROM messages WHERE conversation_id=? ORDER BY id DESC LIMIT 1",
+                (conv_id,)
+            ).fetchone()
+            if latest:
+                conn.execute(
+                    "UPDATE conversations SET last_message=?, last_sender=?, last_direction=? WHERE id=?",
+                    (latest["content"][:200], latest["sender_name"], latest["direction"], conv_id),
+                )
+            else:
+                conn.execute(
+                    "UPDATE conversations SET last_message='', last_sender='', last_direction='' WHERE id=?",
+                    (conv_id,),
+                )
         conn.commit()
         conn.close()
         return msg_ids
@@ -294,7 +321,23 @@ async def delete_message(msg_id: int) -> Optional[dict]:
             conn.close()
             return None
         deleted = dict(row)
+        conv_id = deleted["conversation_id"]
         conn.execute("DELETE FROM messages WHERE id = ?", (msg_id,))
+        # 更新会话预览为最新消息
+        latest = conn.execute(
+            "SELECT content, sender_name, direction FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1",
+            (conv_id,)
+        ).fetchone()
+        if latest:
+            conn.execute(
+                "UPDATE conversations SET last_message=?, last_sender=?, last_direction=? WHERE id=?",
+                (latest["content"][:200], latest["sender_name"], latest["direction"], conv_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE conversations SET last_message='', last_sender='', last_direction='' WHERE id=?",
+                (conv_id,),
+            )
         conn.commit()
         conn.close()
         return deleted

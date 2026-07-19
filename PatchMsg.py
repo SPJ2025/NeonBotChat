@@ -17,6 +17,9 @@ logger = botpy_logging.get_logger("patch_qqofficial")
 
 # GroupMessage 有 __slots__ 限制，用字典存额外属性
 _msg_author_bot: dict = {}
+_msg_attachments: dict = {}
+_msg_member_role: dict = {}
+_msg_username: dict = {}
 
 
 def _ensure_group_message_create_parser() -> None:
@@ -36,6 +39,12 @@ def _ensure_group_message_create_parser() -> None:
             # ⚠️ 用 data.id（消息 ID）而非 payload.id（事件 ID），因为 GroupMessage.id 指向 data.id
             msg_id = data.get("id", "")
             _msg_author_bot[msg_id] = data.get("author", {}).get("bot", False)
+            # 也把原始附件存下来（botpy 可能丢失 voice_wav_url 等字段）
+            _msg_attachments[msg_id] = data.get("attachments", [])
+            # 存储 member_role
+            _msg_member_role[msg_id] = data.get("author", {}).get("member_role", "")
+            # 存储 username（优先于第三方 API）
+            _msg_username[msg_id] = data.get("author", {}).get("username", "")
 
             logger.info("[QQOfficial] 📥 收到消息 JSON:\n%s",
                          json.dumps(payload, ensure_ascii=False, indent=2))
@@ -78,9 +87,27 @@ def is_author_bot(msg_id: str) -> bool:
     return _msg_author_bot.get(msg_id, False)
 
 
+def get_username(msg_id: str) -> str:
+    """获取原始 JSON 中的 author.username"""
+    return _msg_username.get(msg_id, "")
+
+
+def get_member_role(msg_id: str) -> str:
+    """获取消息发送者的群角色"""
+    return _msg_member_role.get(msg_id, "")
+
+
+def get_raw_attachments(msg_id: str) -> list:
+    """获取原始 JSON 中的 attachments（含 voice_wav_url 等完整字段）"""
+    return _msg_attachments.get(msg_id, [])
+
+
 __all__ = [
     "_ensure_group_message_create_parser",
     "clean_group_message_content",
     "is_bot_mentioned",
     "is_author_bot",
+    "get_raw_attachments",
+    "get_member_role",
+    "get_username",
 ]

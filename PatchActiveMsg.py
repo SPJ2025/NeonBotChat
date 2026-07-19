@@ -90,11 +90,11 @@ async def send_group_msg(
         "Authorization": f"{AUTH_TYPE} {token}",
         "Content-Type": "application/json",
     }
-    payload = {
-        "msg_type": msg_type,
-        "content": content,
-        # 主动发送不需要 msg_id / event_id
-    }
+    payload = {"msg_type": msg_type}
+    if msg_type == 2:  # markdown
+        payload["markdown"] = {"content": content}
+    else:
+        payload["content"] = content
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=payload) as resp:

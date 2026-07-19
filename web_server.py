@@ -9,7 +9,7 @@ import os
 from typing import Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 import aiohttp
 from urllib.parse import unquote
@@ -100,15 +100,24 @@ async def index():
 
 @app.get("/api/image")
 async def api_image_proxy(url: str = Query(...)):
-    """代理下载 QQ 图片，绕过防盗链"""
+    """代理下载 QQ 媒体文件，绕过防盗链。图片/视频均流式传输"""
     try:
         decoded = unquote(url)
         async with aiohttp.ClientSession() as session:
-            async with session.get(decoded, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(decoded, timeout=aiohttp.ClientTimeout(total=120)) as resp:
                 if resp.status != 200:
                     return Response(status_code=502)
-                data = await resp.read()
                 content_type = resp.headers.get("Content-Type", "image/png")
+                content_length = resp.headers.get("Content-Length")
+                # 视频等大文件：流式传输
+                if content_type.startswith("video/") or content_type.startswith("audio/"):
+                    return StreamingResponse(
+                        resp.content.iter_chunked(64 * 1024),
+                        media_type=content_type,
+                        headers={"Content-Length": content_length} if content_length else {},
+                    )
+                # 图片等小文件：直接读
+                data = await resp.read()
                 return Response(content=data, media_type=content_type)
     except Exception:
         return Response(status_code=502)
@@ -314,6 +323,7 @@ async def api_send(request: Request):
         content=content,
         direction="outgoing",
         msg_id=str(result.get("id", "")),
+        msg_type=msg_type,
     )
 
     # 3) 广播给所有 WebUI 客户端
@@ -340,19 +350,35 @@ async def api_recall_message(msg_db_id: int):
     # 调 QQ API 撤回
     if qq_msg_id:
         try:
-            await recall_group_msg(conv_id, qq_msg_id)
+            result = await recall_group_msg(conv_id, qq_msg_id)
+            # 检查 QQ API 是否返回了错误
+            if result.get("code") or result.get("err_code"):
+                err_msg = result.get("message", "") or result.get("msg", "") or "未知错误"
+                return JSONResponse({"error": f"撤回失败：{err_msg}", "qq_code": result.get("code") or result.get("err_code")}, status_code=400)
         except Exception as e:
             return JSONResponse({"error": f"撤回失败: {str(e)}"}, status_code=500)
 
-    # 本地删除 + 广播
-    deleted = await delete_message(msg_db_id)
-    if deleted:
-        from database import bot_name
-        deleted["deleted"] = True
-        deleted["bot_name"] = bot_name  # 撤回时用
-        await manager.broadcast({"type": "recall_message", "data": deleted})
+    # 本地标记撤回（保留原内容用于重编辑）
+    from database import bot_name
+    import sqlite3, os as _os
+    def _do_recall():
+        conn = sqlite3.connect(_os.path.join(_os.path.dirname(__file__), "neonbot.db"))
+        conn.row_factory = sqlite3.Row
+        conn.execute("UPDATE messages SET recalled=1 WHERE id=?", (msg_db_id,))
+        conn.execute(
+            "UPDATE conversations SET last_message='你撤回了一条消息', last_sender='', last_direction='' WHERE id=?",
+            (conv_id,)
+        )
+        row = conn.execute("SELECT * FROM messages WHERE id=?", (msg_db_id,)).fetchone()
+        conn.commit()
+        conn.close()
+        return dict(row) if row else None
+    recalled = await asyncio.to_thread(_do_recall)
+    if recalled:
+        recalled["bot_name"] = bot_name
+        await manager.broadcast({"type": "recall_message", "data": recalled})
         return {"ok": True}
-    return JSONResponse({"error": "删除失败"}, status_code=500)
+    return JSONResponse({"error": "撤回失败"}, status_code=500)
 
 
 @app.post("/api/messages/batch-delete")

@@ -34,7 +34,7 @@ body {
 /* ── Sidebar ──────────────────────────────────── */
 .sidebar {
   width: 300px; min-width: 240px;
-  background: rgba(30, 31, 35, 0.5);
+  background: color-mix(in srgb, var(--sidebar) 50%, transparent);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   display: flex; flex-direction: column;
@@ -76,8 +76,8 @@ body {
   cursor: pointer; transition: background 0.15s;
   margin-bottom: 2px;
 }
-.conv-item:hover { background: #2e3035; }
-.conv-item.active { background: #3e4047; }
+.conv-item:hover { background: color-mix(in srgb, var(--text) 8%, transparent); }
+.conv-item.active { background: color-mix(in srgb, var(--text) 12%, transparent); }
 .conv-item .avatar {
   width: 42px; height: 42px; border-radius: 50%;
   background: var(--accent); flex-shrink: 0;
@@ -92,8 +92,8 @@ body {
   padding: 1px 6px; border-radius: 10px; min-width: 20px; text-align: center;
 }
 .sidebar-footer {
-  padding: 12px 16px; border-top: 1px solid var(--border);
-  font-size: 0.8em; color: var(--text-dim); text-align: center;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+  font-size: 0.95em; color: var(--text-dim);
 }
 
 /* ── Chat Area ────────────────────────────────── */
@@ -158,7 +158,9 @@ body {
 }
 .msg-row { display: flex; margin-bottom: 12px; }
 .msg-row.center { justify-content: center; }
-.msg-row.center .msg-bubble { background: transparent; color: var(--text-dim); font-style: italic; font-size: 0.85em; }
+.msg-row.center .msg-bubble { background: rgba(58, 59, 64, 0.7); color: var(--text-dim); font-size: 0.85em; border-radius: 8px; padding: 6px 14px; }
+.reedit-link { color: var(--accent); cursor: pointer; font-style: normal; }
+.reedit-link:hover { color: #7e8fff; }
 .msg-row.out { justify-content: flex-end; }
 .msg-bubble {
   max-width: 65%; padding: 10px 14px; border-radius: 12px;
@@ -166,9 +168,25 @@ body {
 }
 .msg-row.in .msg-bubble { background: var(--bubble-in); border-top-left-radius: 4px; }
 .msg-row.out .msg-bubble { background: var(--bubble-out); color: #fff; border-top-right-radius: 4px; }
-.msg-sender { font-size: 0.78em; color: #7eb8ff; margin-bottom: 2px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.msg-sender { font-size: 0.78em; color: #e4e5e7; margin-bottom: 2px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
 .msg-sender.sender-self { color: #b8c7ff; justify-content: flex-end; }
+.msg-sender.role-owner, .msg-sender.role-群主 { color: #f0c060; }
+.msg-sender.role-admin, .msg-sender.role-管理员 { color: #8ab4ff; }
 .msg-sender img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.admin-badge {
+  display: inline-block; font-size: 0.75em; font-weight: 500;
+  background: rgba(79, 126, 245, 0.25); color: #8ab4ff;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  padding: 1px 6px; border-radius: 4px; margin-left: 4px;
+  vertical-align: middle;
+}
+.owner-badge {
+  display: inline-block; font-size: 0.75em; font-weight: 500;
+  background: rgba(240, 160, 64, 0.25); color: #f0c060;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  padding: 1px 6px; border-radius: 4px; margin-left: 4px;
+  vertical-align: middle;
+}
 .media-placeholder { color: var(--text-dim); font-style: italic; }
 .msg-image {
   max-width: 280px; max-height: 280px; border-radius: 8px;
@@ -214,6 +232,15 @@ body {
 }
 .input-area button:hover { background: var(--accent-hover); }
 .input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+.md-toggle {
+  display: flex; align-items: center; gap: 4px; font-size: 0.8em;
+  color: var(--text-dim); cursor: pointer; user-select: none;
+  white-space: nowrap; padding: 6px 8px; border-radius: 6px;
+  transition: all 0.15s; border: 1px solid transparent;
+}
+.md-toggle:hover { color: var(--text); }
+.md-toggle.active { color: var(--accent); border-color: var(--accent); background: rgba(88, 101, 242, 0.1); }
+.md-toggle input { accent-color: var(--accent); }
 
 /* ── Scrollbar ────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; }
@@ -267,6 +294,15 @@ body {
 .stat-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; }
 .stat-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.9s ease; }
 .stat-bar-mem { background: #f0a040; }
+
+/* ── Theme Button ────────────────────────────── */
+.theme-btn {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+  background: transparent; color: var(--text-dim); cursor: pointer;
+  font-size: 0.9em; transition: all 0.15s;
+}
+.theme-btn:hover { color: var(--text); border-color: var(--accent); }
+.theme-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── Settings Nav ────────────────────────────── */
 .settings-nav {
@@ -335,6 +371,25 @@ body {
 .modal-actions .btn-ok:hover { background: var(--accent-hover); }
 .modal-actions .btn-cancel:hover { background: #4a4b50; }
 
+/* ── Light Mode ──────────────────────────────── */
+body.light {
+  --bg:         #f0f1f4;
+  --sidebar:    #e8e9ed;
+  --chat-bg:    #f5f6f8;
+  --bubble-in:  #e0e1e5;
+  --bubble-out: #5865f2;
+  --text:       #2e3035;
+  --text-dim:   #6d6f78;
+  --border:     #d0d1d6;
+}
+body.light .chat-area.has-bg .msg-row.in .msg-bubble { background: rgba(224, 225, 229, 0.45); }
+body.light .msg-row.center .msg-bubble { background: rgba(200, 200, 210, 0.5); }
+body.light .chat-header.glass { background: rgba(232, 233, 237, 0.55); }
+body.light .input-area { background: rgba(232, 233, 237, 0.55); }
+body.light .settings-nav { background: rgba(232, 233, 237, 0.75); }
+body.light .chat-area.has-bg { background: transparent; }
+body.light .sidebar { background: rgba(232, 233, 237, 0.5); }
+
 /* ── Responsive ───────────────────────────────── */
 @media (max-width: 600px) {
   .sidebar { width: 100%; min-width: unset; }
@@ -351,7 +406,6 @@ body {
   <div class="sidebar-header">
     <span class="logo">🤖 NeonBot</span>
     <span class="status" id="botStatus">● 在线</span>
-    <button class="btn-add" id="btnRefresh" title="刷新">🔄</button>
     <button class="btn-add" id="btnAddConv" title="添加群聊">＋</button>
   </div>
   <div class="search-box">
@@ -414,6 +468,11 @@ body {
     <div style="flex:1; padding:24px; overflow-y:auto; max-height:70vh;">
       <!-- 通用 -->
       <div class="settings-tab" id="tab-general">
+        <h3 style="margin-bottom:12px;">🎨 外观</h3>
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <button class="theme-btn active" id="themeDark" onclick="setTheme('dark')">🌙 深色</button>
+          <button class="theme-btn" id="themeLight" onclick="setTheme('light')">☀ 浅色</button>
+        </div>
         <h3 style="margin-bottom:16px;">🖼 聊天背景</h3>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
           <input type="file" id="bgFileInput" accept="image/*" style="display:none;">
@@ -440,7 +499,7 @@ body {
       <div class="settings-tab" id="tab-about" style="display:none; text-align:center;">
         <h3>关于</h3>
         <p style="font-size:3em;margin:12px 0;">🤖</p>
-        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.1</p>
+        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.2</p>
         <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;">📄 阅读 README.md</a>
         <p style="color:var(--text-dim);font-size:0.85em;margin-top:12px;">Copyright © 2026 Neon. All Rights Reserved.</p>
       </div>
@@ -467,7 +526,7 @@ body {
 
 <!-- ═══════════ Favorites Modal ═══════════ -->
 <div class="modal-overlay" id="favModal">
-  <div class="modal-box" style="max-height:70vh;overflow-y:auto;">
+  <div class="modal-box" style="max-height:70vh;overflow-y:auto;width:520px;max-width:95vw;">
     <h3>⭐ 收藏列表</h3>
     <div id="favList" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="modal-actions" style="margin-top:12px;">
@@ -507,6 +566,7 @@ body {
   <div class="messages" id="messages" style="display:none;"></div>
   <div class="input-area" id="inputArea" style="display:none;">
     <textarea id="msgInput" rows="1" placeholder="输入消息… (Enter 发送, Shift+Enter 换行)" disabled></textarea>
+    <label class="md-toggle" id="mdToggle" title="发送为 Markdown"><input type="checkbox" id="mdCheckbox"> MD</label>
     <button id="sendBtn" disabled>发送</button>
   </div>
 </main>
@@ -557,11 +617,13 @@ function connectWS() {
       } else if (data.type === 'batch_delete') {
         handleBatchDelete(data.data);
       } else if (data.type === 'clear_all') {
-        // 清空当前界面
         $messages.innerHTML = '';
         lastMsgId = 0;
-        conversations.forEach(c => { c.last_message = ''; c.unread_count = 0; });
-        renderConvList($searchInput.value);
+        // 重新加载会话列表
+        API('/api/conversations').then(d => {
+          conversations = d.conversations || [];
+          renderConvList($searchInput.value);
+        });
       }
     } catch (e) {
       console.warn('[WS] parse error', e);
@@ -578,26 +640,31 @@ function connectWS() {
 }
 
 // ── 处理新消息（来自 Bot 或自己发出） ──────────────
+let pendingContents = new Set();  // 去重用
+
 function handleIncomingMessage(msg) {
+  // 构建预览文字
+  let preview = msg.content || '';
+  if (msg.direction === 'incoming' && msg.sender_name) {
+    preview = msg.sender_name + ': ' + (msg.content || '');
+  }
   // 更新/插入会话列表
   const idx = conversations.findIndex(c => c.id === msg.conversation_id);
   if (idx >= 0) {
-    conversations[idx].last_message = msg.content;
+    conversations[idx].last_message = preview;
     conversations[idx].unread_count = (conversations[idx].unread_count || 0);
     if (msg.conversation_id !== currentConv) {
       conversations[idx].unread_count++;
     }
-    // 移到顶部
     const [item] = conversations.splice(idx, 1);
     conversations.unshift(item);
   } else {
-    // 新会话，加入列表
     conversations.unshift({
       id: msg.conversation_id,
       name: msg.conversation_id,
       type: 'group',
       avatar_url: '',
-      last_message: msg.content,
+      last_message: preview,
       unread_count: currentConv === msg.conversation_id ? 0 : 1,
     });
   }
@@ -614,6 +681,14 @@ function handleIncomingMessage(msg) {
 }
 
 // ── 渲染会话列表 ────────────────────────────────────
+function convPreview(c) {
+  if (!c.last_message) return '';
+  if (c.last_direction === 'incoming' && c.last_sender) {
+    return c.last_sender + ': ' + c.last_message;
+  }
+  return c.last_message;
+}
+
 function renderConvList(filter = '') {
   const q = filter.toLowerCase();
   const filtered = conversations.filter(c =>
@@ -628,7 +703,7 @@ function renderConvList(filter = '') {
         <div class="avatar">${(c.name || c.id)[0]}</div>
         <div class="info">
           <div class="name">${escHtml(c.name || c.id)}</div>
-          <div class="preview">${escHtml(c.last_message || '暂无消息')}</div>
+          <div class="preview">${escHtmlWithBr(convPreview(c) || '暂无消息')}</div>
         </div>
         ${c.unread_count ? `<span class="badge">${c.unread_count > 99 ? '99+' : c.unread_count}</span>` : ''}
       </div>
@@ -639,6 +714,16 @@ function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
   return d.innerHTML;
+}
+
+function escHtmlWithBr(s) {
+  return escHtml(s).replace(/\n/g, '<br>');
+}
+
+function roleBadge(role) {
+  if (role === 'owner' || role === '群主') return '<span class="owner-badge">群主</span>';
+  if (role === 'admin' || role === '管理员') return '<span class="admin-badge">管理员</span>';
+  return '';
 }
 
 // ── 选择会话 ────────────────────────────────────────
@@ -681,6 +766,8 @@ function appendMessage(msg, scroll) {
   div.dataset.msgSender = msg.sender_name || '';
   div.dataset.msgSenderAvatar = msg.sender_avatar || '';
   div.dataset.msgTimestamp = msg.timestamp || '';
+  div.dataset.msgMemberRole = msg.member_role || '';
+  div.dataset.msgType = msg.msg_type || 0;
   div.addEventListener('contextmenu', onMsgContextMenu);
 
   const time = msg.timestamp ? msg.timestamp.replace('T', ' ').substring(0, 16) : '';
@@ -690,23 +777,44 @@ function appendMessage(msg, scroll) {
   try {
     const attachments = typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : (msg.attachments || []);
     for (const a of attachments) {
-      if (a.content_type && a.content_type.startsWith('image/') && a.url) {
-        const proxyUrl = `/api/image?url=${encodeURIComponent(a.url)}`;
-        attachHtml += `<img src="${escHtml(proxyUrl)}" class="msg-image" alt="${escHtml(a.filename || '图片')}" loading="lazy" onclick="viewImage('${escHtml(proxyUrl)}')" onerror="this.alt='[图片加载失败]';this.classList.add('img-error');">`;
+      // 语音用 voice_wav_url，其他用 url
+      const rawUrl = a.content_type === 'voice' ? (a.voice_wav_url || a.url) : a.url;
+      if (rawUrl) {
+        // 语音消息直接用原始 URL（QQ 语音 CDN 无需代理）
+        const mediaUrl = a.content_type === 'voice' ? rawUrl : `/api/image?url=${encodeURIComponent(rawUrl)}`;
+        const isVoice = a.content_type === 'voice';
+        if (a.content_type && a.content_type.startsWith('image/')) {
+          attachHtml += `<img src="${escHtml(mediaUrl)}" class="msg-image" alt="${escHtml(a.filename || '图片')}" loading="lazy" onclick="viewImage('${escHtml(mediaUrl)}')" onerror="this.alt='[图片加载失败]';this.classList.add('img-error');">`;
+        } else if (a.content_type && a.content_type.startsWith('video/')) {
+          attachHtml += `<video src="${escHtml(mediaUrl)}" class="msg-video" controls preload="metadata" style="max-width:280px;max-height:280px;border-radius:8px;display:block;margin-bottom:6px;position:relative;z-index:2;pointer-events:auto;" onerror="this.style.display='none'" oncontextmenu="event.stopPropagation()"></video>`;
+        } else if (isVoice) {
+          attachHtml += `<audio src="${escHtml(mediaUrl)}" class="msg-audio" controls preload="auto" style="display:block;margin-bottom:6px;max-width:280px;position:relative;z-index:2;pointer-events:auto;" oncontextmenu="event.stopPropagation()"></audio>`;
+        }
       }
     }
   } catch (e) {}
 
-  const isPlaceholder = !attachHtml && (msg.content === '[富媒体文件]' || msg.content === '[图片]');
+  // 撤回消息特殊渲染
+  if (msg.recalled) {
+    div.classList.remove('in', 'out');
+    div.classList.add('center');
+    div.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${escHtml(msg.content || '')}', ${msg.msg_type || 0})">重新编辑</span></div>`;
+    $messages.appendChild(div);
+    if (scroll) scrollBottom();
+    return;
+  }
+
+  const placeholders = ['[富媒体文件]', '[图片]', '[视频]', '[语音]'];
+  const isPlaceholder = !attachHtml && placeholders.includes(msg.content);
 
   div.innerHTML = `
     <div class="msg-checkbox">✓</div>
     <div class="msg-bubble">
       ${msg.sender_name
-        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}">${msg.sender_avatar ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="">` : ''}${escHtml(msg.sender_name)}</div>`
+        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.sender_avatar ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${escHtml(msg.sender_name)}${roleBadge(msg.member_role)}</div>`
         : ''}
       ${attachHtml}
-      ${msg.content && msg.content !== '[图片]' ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${escHtml(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtml(msg.content)}</div>` : '')}
+      ${msg.content && !placeholders.includes(msg.content) ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${escHtmlWithBr(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtmlWithBr(msg.content)}</div>` : '')}
       <div class="msg-time">${time}</div>
     </div>
   `;
@@ -717,6 +825,7 @@ function appendMessage(msg, scroll) {
 
 // 点击查看大图
 function viewImage(src) {
+  if (selectMode) return;
   const w = window.open('');
   w.document.write(`<title>图片预览</title><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#000;}</style><img src="${escHtml(src)}" style="max-width:100%;max-height:100vh;" onerror="this.alt='加载失败'">`);
 }
@@ -753,7 +862,6 @@ function scrollBottom() {
 
 // ── 发送消息 ────────────────────────────────────────
 let pendingId = 0;
-let pendingContents = new Set();  // 去重用：正在发送中的内容
 
 async function sendMessage(retryMsgId) {
   const isRetry = !!retryMsgId;
@@ -769,6 +877,9 @@ async function sendMessage(retryMsgId) {
     content = $msgInput.value.trim();
     if (!content || !currentConv) return;
   }
+
+  // 检查是否发送为 markdown
+  const msgType = $('#mdCheckbox').checked ? 2 : 0;
 
   const tempId = isRetry ? retryMsgId : `pending_${++pendingId}`;
 
@@ -787,6 +898,8 @@ async function sendMessage(retryMsgId) {
     appendPendingMessage(fakeMsg);
     $msgInput.value = '';
     $msgInput.style.height = 'auto';
+    $('#mdCheckbox').checked = false;
+    updateMdToggle();
   }
 
   pendingContents.add(content);
@@ -796,7 +909,7 @@ async function sendMessage(retryMsgId) {
     const result = await API('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conv_id: currentConv, content, msg_type: 0 }),
+      body: JSON.stringify({ conv_id: currentConv, content, msg_type: msgType }),
     });
     if (result.error) {
       markMessageFailed(tempId);
@@ -822,12 +935,13 @@ function appendPendingMessage(msg) {
   div.innerHTML = `
     <div class="msg-bubble">
       ${msg.sender_name ? `<div class="msg-sender sender-self">${escHtml(msg.sender_name)}</div>` : ''}
-      <div>${escHtml(msg.content)}</div>
+      <div>${escHtmlWithBr(msg.content)}</div>
       <div class="msg-time">发送中…</div>
     </div>
     <button class="msg-retry" onclick="sendMessage('${msg.pending_id}')" title="重发">!</button>
   `;
 
+  div.addEventListener('contextmenu', onMsgContextMenu);
   $messages.appendChild(div);
   scrollBottom();
 }
@@ -843,13 +957,15 @@ function replacePendingMessage(pendingId, realMsg) {
   el.dataset.msgSender = realMsg.sender_name || '';
   el.dataset.msgSenderAvatar = realMsg.sender_avatar || '';
   el.dataset.msgTimestamp = realMsg.timestamp || '';
+  el.dataset.msgMemberRole = realMsg.member_role || '';
+  el.dataset.msgType = realMsg.msg_type || 0;
   el.removeAttribute('data-pending-id');
 
   const time = realMsg.timestamp ? realMsg.timestamp.replace('T', ' ').substring(0, 16) : '';
   el.innerHTML = `
     <div class="msg-bubble">
-      ${realMsg.sender_name ? `<div class="msg-sender sender-self"><img src="${escHtml(realMsg.sender_avatar || '')}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">${escHtml(realMsg.sender_name)}</div>` : ''}
-      <div>${escHtml(realMsg.content)}</div>
+      ${realMsg.sender_name ? `<div class="msg-sender sender-self${realMsg.member_role ? ' role-' + realMsg.member_role : ''}"><img src="${escHtml(realMsg.sender_avatar || '')}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(realMsg.sender_avatar || '')}')">${escHtml(realMsg.sender_name)}${roleBadge(realMsg.member_role)}</div>` : ''}
+      <div>${escHtmlWithBr(realMsg.content)}</div>
       <div class="msg-time">${time}</div>
     </div>
   `;
@@ -867,7 +983,7 @@ function markMessageFailed(pendingId) {
 }
 
 // ── 事件绑定 ────────────────────────────────────────
-$sendBtn.addEventListener('click', sendMessage);
+$sendBtn.addEventListener('click', () => sendMessage());
 $msgInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -880,6 +996,14 @@ $msgInput.addEventListener('input', () => {
   $msgInput.style.height = Math.min($msgInput.scrollHeight, 120) + 'px';
 });
 $searchInput.addEventListener('input', () => renderConvList($searchInput.value));
+
+// MD 勾选框样式切换
+function updateMdToggle() {
+  const active = $('#mdCheckbox').checked;
+  if (active) $('#mdToggle').classList.add('active');
+  else $('#mdToggle').classList.remove('active');
+}
+$('#mdCheckbox').addEventListener('change', updateMdToggle);
 
 // ── 添加群聊弹窗 ────────────────────────────────────
 const $addModal = $('#addConvModal');
@@ -1086,32 +1210,45 @@ const $batchCount = $('#batchCount');
 
 function onMsgContextMenu(e) {
   e.preventDefault();
-  if (selectMode) return; // 多选模式下不弹右键菜单
-  // 从 data 属性取，取不到就拿 DOM 文本
+  if (selectMode) return;
+  if (this.classList.contains('center')) return;  // 撤回消息不弹菜单
   let content = this.dataset.msgContent || '';
   if (!content) {
     const bubble = this.querySelector('.msg-bubble');
     if (bubble) content = bubble.textContent.replace(/^\s+|\s+$/g, '');
   }
-  // 提取图片链接
   const imgs = this.querySelectorAll('.msg-image');
   const imgUrls = [...imgs].map(img => img.src || '').filter(Boolean);
+  const videos = this.querySelectorAll('.msg-video');
+  const videoUrls = [...videos].map(v => v.src || '').filter(Boolean);
+  const audios = this.querySelectorAll('.msg-audio');
+  const audioUrls = [...audios].map(a => a.src || '').filter(Boolean);
 
   ctxTargetMsg = {
     id: parseInt(this.dataset.msgId) || 0,
     direction: this.dataset.msgDirection,
     content: content,
     imgUrls: imgUrls,
+    videoUrls: videoUrls,
+    audioUrls: audioUrls,
     sender_name: this.dataset.msgSender || '',
     sender_avatar: this.dataset.msgSenderAvatar || '',
+    member_role: this.dataset.msgMemberRole || '',
+    msg_type: parseInt(this.dataset.msgType) || 0,
     timestamp: this.dataset.msgTimestamp || '',
     el: this,
   };
+  const hasVideo = this.querySelector('.msg-video');
+  $('#ctxCopy').textContent = hasVideo ? '⬇ 下载视频' : '📋 复制';
   $('#ctxRecall').style.display = ctxTargetMsg.direction === 'outgoing' ? '' : 'none';
   $('#ctxMultiSelect').style.display = '';
   $ctxMenu.style.display = 'block';
+  // 先显示才能量高度
+  const menuH = $ctxMenu.offsetHeight || 120;
+  let top = e.clientY;
+  if (e.clientY + menuH > window.innerHeight) top = e.clientY - menuH;
   $ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
-  $ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 80) + 'px';
+  $ctxMenu.style.top = Math.max(0, top) + 'px';
 }
 
 document.addEventListener('click', (e) => {
@@ -1149,9 +1286,11 @@ function renderFavList() {
     <div style="padding:8px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">
       ${f.avatar ? `<img src="${escHtml(f.avatar)}" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;margin-top:2px;" onerror="this.style.display='none'">` : ''}
       <div style="min-width:0;flex:1;">
-        <div style="font-size:0.75em;color:var(--text-dim);">${escHtml(f.sender || '未知')} · ${escHtml(f.time || '')}</div>
-        ${(f.imgUrls || []).map(u => `<a href="${escHtml(u)}" target="_blank"><img src="${escHtml(u)}" style="max-width:200px;max-height:150px;border-radius:6px;display:block;margin:4px 0;cursor:pointer;" onerror="this.style.display='none'"></a>`).join('')}
-        ${f.content && f.content !== '[图片]' ? `<div style="font-size:0.9em;word-break:break-word;">${escHtml(f.content)}</div>` : (!f.imgUrls || f.imgUrls.length === 0 ? `<div style="font-size:0.9em;color:var(--text-dim);font-style:italic;">[图片]</div>` : '')}
+        <div style="font-size:0.75em;color:var(--text-dim);">${escHtml(f.sender || '未知')}${roleBadge(f.member_role)} · ${escHtml(f.time || '')}</div>
+        ${(f.imgUrls || []).map(u => `<a href="${escHtml(u)}" target="_blank"><img src="${escHtml(u)}" style="max-width:100%;max-height:300px;border-radius:6px;display:block;margin:4px 0;cursor:pointer;" onerror="this.style.display='none'"></a>`).join('')}
+        ${(f.videoUrls || []).map(u => `<video src="${escHtml(u)}" controls preload="metadata" style="max-width:100%;max-height:300px;border-radius:6px;display:block;margin:4px 0;" onerror="this.style.display='none'"></video>`).join('')}
+        ${(f.audioUrls || []).map(u => `<audio src="${escHtml(u)}" controls preload="metadata" style="display:block;margin:4px 0;max-width:100%;" onerror="this.style.display='none'"></audio>`).join('')}
+        ${f.content && !['[图片]','[视频]','[语音]'].includes(f.content) ? `<div style="font-size:0.9em;word-break:break-word;">${escHtmlWithBr(f.content)}</div>` : (!f.imgUrls && !f.videoUrls && !f.audioUrls ? `<div style="font-size:0.9em;color:var(--text-dim);font-style:italic;">${escHtml(f.content || '[消息]')}</div>` : '')}
       </div>
       <button style="background:none;border:none;color:var(--danger);cursor:pointer;flex-shrink:0;" onclick="removeFav(${i})" title="取消收藏">✕</button>
     </div>
@@ -1163,8 +1302,11 @@ function addFavorite(msg) {
   favs.push({
     content: msg.content || '',
     imgUrls: msg.imgUrls || [],
+    videoUrls: msg.videoUrls || [],
+    audioUrls: msg.audioUrls || [],
     sender: msg.sender_name || '',
     avatar: msg.sender_avatar || '',
+    member_role: msg.member_role || '',
     time: (msg.timestamp || '').substring(0, 16),
     conv_id: currentConv || '',
     saved_at: new Date().toISOString(),
@@ -1268,19 +1410,36 @@ $('#btnClearFav').addEventListener('click', () => {
 
 // ── 右键菜单事件 ──────────────────────────────────────
 $('#ctxCopy').addEventListener('click', async () => {
-  const imgs = ctxTargetMsg?.el?.querySelectorAll('.msg-image');
+  $ctxMenu.style.display = 'none';
+  const el = ctxTargetMsg?.el;
+  const imgs = el?.querySelectorAll('.msg-image');
+  const videos = el?.querySelectorAll('.msg-video');
   if (imgs && imgs.length > 0) {
-    // 复制第一张图片为图片格式
     try {
       const resp = await fetch(imgs[0].src);
       const blob = await resp.blob();
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      showToast('✅ 复制成功');
     } catch (e) {
-      // 降级：复制图片链接
       navigator.clipboard.writeText(imgs[0].src).catch(() => {});
+      showToast('⚠ 已复制图片链接（不支持图片格式）');
+    }
+  } else if (videos && videos.length > 0) {
+    try {
+      const a = document.createElement('a');
+      a.href = videos[0].src;
+      a.download = 'video.mp4';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      showToast('⬇ 开始下载视频');
+    } catch (e) {
+      navigator.clipboard.writeText(videos[0].src).catch(() => {});
+      showToast('⚠ 下载失败，已复制链接');
     }
   } else if (ctxTargetMsg?.content) {
     navigator.clipboard.writeText(ctxTargetMsg.content).catch(() => {});
+    showToast('✅ 复制成功');
   }
   $ctxMenu.style.display = 'none';
 });
@@ -1306,8 +1465,8 @@ $('#forwardModal').addEventListener('click', (e) => { if (e.target === $('#forwa
 $('#btnOkForward').addEventListener('click', async () => {
   const targetId = $('#forwardTarget').value;
   if (!targetId) return;
-  // 文字内容 + 图片链接
   let content = ctxTargetMsg?.content || '';
+  let msgType = ctxTargetMsg?.msg_type || 0;
   const imgs = ctxTargetMsg?.el?.querySelectorAll('.msg-image');
   if (imgs && imgs.length > 0) {
     const imgUrls = [...imgs].map(img => img.src.replace('/api/image?url=', '')).map(decodeURIComponent);
@@ -1319,7 +1478,7 @@ $('#btnOkForward').addEventListener('click', async () => {
     const r = await API('/api/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conv_id: targetId, content, msg_type: 0 }),
+      body: JSON.stringify({ conv_id: targetId, content, msg_type: msgType }),
     });
     if (r.error) { alert('转发失败: ' + r.error); return; }
     $('#forwardModal').classList.remove('show');
@@ -1336,11 +1495,11 @@ $('#ctxFavorite').addEventListener('click', () => {
 
 $('#ctxRecall').addEventListener('click', async () => {
   if (!ctxTargetMsg?.id) return;
+  $ctxMenu.style.display = 'none';
   try {
     const r = await API(`/api/recall/${ctxTargetMsg.id}`, { method: 'POST' });
-    if (r.error) { alert('撤回失败: ' + r.error); }
-  } catch (e) { alert('网络错误: ' + e.message); }
-  $ctxMenu.style.display = 'none';
+    if (r.error) { showToast('⚠ ' + r.error); }
+  } catch (e) { showToast('⚠ 网络错误: ' + e.message); }
 });
 
 $('#ctxMultiSelect').addEventListener('click', () => {
@@ -1426,29 +1585,58 @@ $('#btnBatchDelete').addEventListener('click', async () => {
 function handleRecallMessage(data) {
   const el = document.querySelector(`.msg-row[data-msg-id="${data.id}"]`);
   if (el) {
-    const who = data.bot_name || 'Bot';
-    el.innerHTML = `<div class="msg-bubble">${escHtml(who)} 撤回了一条消息</div>`;
+    el.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${escHtml(data.content || '')}', ${data.msg_type || 0})">重新编辑</span></div>`;
     el.classList.add('center');
     el.classList.remove('in', 'out');
+    el.removeEventListener('contextmenu', onMsgContextMenu);
   }
+  // 更新会话预览
+  const conv = conversations.find(c => c.id === data.conversation_id);
+  if (conv) {
+    conv.last_message = '你撤回了一条消息';
+    conv.last_sender = '';
+    conv.last_direction = '';
+  }
+  renderConvList($searchInput.value);
 }
 
-function handleDeleteMessage(data) {
+function reeditMessageContent(content, msgType) {
+  $msgInput.value = content || '';
+  $('#mdCheckbox').checked = (msgType === 2);
+  updateMdToggle();
+  $msgInput.focus();
+  $msgInput.style.height = 'auto';
+  $msgInput.style.height = Math.min($msgInput.scrollHeight, 120) + 'px';
+  $msgInput.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function handleDeleteMessage(data) {
   const el = document.querySelector(`.msg-row[data-msg-id="${data.id}"]`);
   if (el) el.remove();
+  // 刷新会话列表（后端已更新 last_message）
+  try {
+    const r = await API('/api/conversations');
+    conversations = r.conversations || [];
+    renderConvList($searchInput.value);
+  } catch (e) {}
 }
 
-function handleBatchDelete(data) {
+async function handleBatchDelete(data) {
   (data.ids || []).forEach(id => {
     const el = document.querySelector(`.msg-row[data-msg-id="${id}"]`);
     if (el) el.remove();
   });
+  // 刷新会话列表
+  try {
+    const r = await API('/api/conversations');
+    conversations = r.conversations || [];
+    renderConvList($searchInput.value);
+  } catch (e) {}
 }
 
 // ── 刷新 ────────────────────────────────────────────
 async function refreshConversations(silent = false) {
   try {
-    // 刷新会话列表
     const data = await API('/api/conversations');
     conversations = data.conversations || [];
     renderConvList($searchInput.value);
@@ -1470,12 +1658,22 @@ async function refreshConversations(silent = false) {
   }
 }
 
-// 刷新按钮
-let refreshTimer = null;
-$('#btnRefresh').addEventListener('click', () => refreshConversations(false));
-
 // 每 5 秒自动刷新
+let refreshTimer = null;
 refreshTimer = setInterval(() => refreshConversations(true), 5000);
+
+// ── 深浅模式 ────────────────────────────────────────
+function setTheme(mode) {
+  document.body.classList.toggle('light', mode === 'light');
+  $('#themeDark').classList.toggle('active', mode === 'dark');
+  $('#themeLight').classList.toggle('active', mode === 'light');
+  localStorage.setItem('neonbot_theme', mode);
+}
+// 初始化主题
+(function() {
+  const saved = localStorage.getItem('neonbot_theme') || 'dark';
+  setTheme(saved);
+})();
 
 // ── 初始化 ──────────────────────────────────────────
 async function init() {

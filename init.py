@@ -26,6 +26,8 @@ from PatchMsg import (
     clean_group_message_content,
     is_bot_mentioned,
     is_author_bot,
+    get_raw_attachments,
+    get_username,
 )
 from PatchActiveMsg import send_group_msg
 from PatchUserInfo import getUserName, replace_mentions_with_names
@@ -104,21 +106,23 @@ class MyClient(botpy.Client):
 
             content = getattr(message, "content", "") or ""
 
-            # 提取附件（图片等）
-            raw_attachments = []
-            # 尝试 message.attachments / message.data.attachments / message._data
-            for src in ("attachments", "data", "_data"):
-                obj = getattr(message, src, None)
-                if obj is None:
-                    continue
-                if isinstance(obj, dict):
-                    raw_attachments = obj.get("attachments", [])
-                elif hasattr(obj, "attachments"):
-                    raw_attachments = obj.attachments or []
-                elif isinstance(obj, list):
-                    raw_attachments = obj
-                if raw_attachments:
-                    break
+            # 提取附件（优先用原始 JSON，botpy 可能丢失 voice_wav_url 等字段）
+            msg_id_for_att = getattr(message, "id", "") or ""
+            raw_attachments = get_raw_attachments(msg_id_for_att)
+            if not raw_attachments:
+                # 降级：从 botpy 对象取
+                for src in ("attachments", "data", "_data"):
+                    obj = getattr(message, src, None)
+                    if obj is None:
+                        continue
+                    if isinstance(obj, dict):
+                        raw_attachments = obj.get("attachments", [])
+                    elif hasattr(obj, "attachments"):
+                        raw_attachments = obj.attachments or []
+                    elif isinstance(obj, list):
+                        raw_attachments = obj
+                    if raw_attachments:
+                        break
             # 归一化
             import json as _json
             norm_attachments = []
@@ -144,8 +148,9 @@ class MyClient(botpy.Client):
             if display_content == content:
                 display_content = clean_group_message_content(content, mentions)
 
-            # 获取发送者昵称
-            if author_id:
+            # 获取发送者昵称：优先 JSON 里的 username，没有则调第三方 API
+            author_name = get_username(msg_id_for_att)
+            if not author_name and author_id:
                 try:
                     author_name = await getUserName(APP_ID, author_id)
                 except Exception:
@@ -155,20 +160,30 @@ class MyClient(botpy.Client):
             msg_id = getattr(message, "id", "") or ""
             if is_author_bot(msg_id) and author_name:
                 author_name = f"{author_name} 🤖"
+            from PatchMsg import get_member_role
+            member_role = get_member_role(msg_id)
+            # 统一角色名
+            if member_role == "owner":
+                member_role = "群主"
+            elif member_role == "admin":
+                member_role = "管理员"
 
             # 确保会话存在
             group_name = f"群聊 {group_id[:8]}"  # 默认名，后面可以优化
             await upsert_conversation(group_id, name=group_name, conv_type="group")
 
             # 保存消息
-            # 判断是否纯附件消息
-            has_image = any(
-                a.get("content_type", "").startswith("image/")
-                for a in norm_attachments
-            )
+            # 判断附件类型
+            has_image = any(a.get("content_type", "").startswith("image/") for a in norm_attachments)
+            has_video = any(a.get("content_type", "").startswith("video/") for a in norm_attachments)
+            has_voice = any(a.get("content_type", "") == "voice" for a in norm_attachments)
             if not display_content.strip():
                 if has_image:
                     display_content = "[图片]"
+                elif has_video:
+                    display_content = "[视频]"
+                elif has_voice:
+                    display_content = "[语音]"
                 elif norm_attachments:
                     display_content = "[富媒体文件]"
                 else:
@@ -182,8 +197,10 @@ class MyClient(botpy.Client):
                 content=display_content,
                 direction="incoming",
                 msg_id=getattr(message, "id", "") or "",
+                msg_type=getattr(message, "message_type", 0) or 0,
                 sender_avatar=avatar_url,
                 attachments=attachments_json,
+                member_role=member_role,
             )
 
             # 补上 @信息
