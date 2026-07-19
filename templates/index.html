@@ -1,0 +1,1489 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeonBotChat — 机器人接管面板</title>
+<style>
+/* ── Reset & Base ─────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:         #1a1b1e;
+  --sidebar:    #1e1f23;
+  --chat-bg:    #2c2d31;
+  --bubble-in:  #3a3b40;
+  --bubble-out: #4f7ef5;
+  --text:       #e4e5e7;
+  --text-dim:   #94969b;
+  --border:     #3e3f44;
+  --accent:     #5865f2;
+  --accent-hover: #4752c4;
+  --danger:     #ed4245;
+  --online:     #3ba55c;
+  --radius:     8px;
+  --font:       -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+}
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+}
+
+/* ── Sidebar ──────────────────────────────────── */
+.sidebar {
+  width: 300px; min-width: 240px;
+  background: rgba(30, 31, 35, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  display: flex; flex-direction: column;
+  border-right: 1px solid rgba(255,255,255,0.06);
+}
+.sidebar-header {
+  padding: 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+}
+.sidebar-header .logo { font-size: 1.3em; font-weight: 700; flex: 1; }
+.sidebar-header .status {
+  font-size: 0.8em; padding: 2px 8px; border-radius: 10px;
+  background: var(--online); color: #fff;
+}
+.sidebar-header .status.offline { background: var(--danger); }
+.sidebar-header .btn-add {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--text-dim); font-size: 1.2em; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.sidebar-header .btn-add:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+.search-box {
+  padding: 10px 16px;
+}
+.search-box input {
+  width: 100%; padding: 8px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg); color: var(--text);
+  outline: none; font-size: 0.9em;
+}
+.search-box input:focus { border-color: var(--accent); }
+.conv-list {
+  flex: 1; overflow-y: auto; padding: 4px 8px;
+}
+.conv-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: var(--radius);
+  cursor: pointer; transition: background 0.15s;
+  margin-bottom: 2px;
+}
+.conv-item:hover { background: #2e3035; }
+.conv-item.active { background: #3e4047; }
+.conv-item .avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: var(--accent); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1em; font-weight: 600;
+}
+.conv-item .info { flex: 1; min-width: 0; }
+.conv-item .name { font-weight: 600; font-size: 0.95em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item .preview { font-size: 0.8em; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.conv-item .badge {
+  background: var(--danger); color: #fff; font-size: 0.7em;
+  padding: 1px 6px; border-radius: 10px; min-width: 20px; text-align: center;
+}
+.sidebar-footer {
+  padding: 12px 16px; border-top: 1px solid var(--border);
+  font-size: 0.8em; color: var(--text-dim); text-align: center;
+}
+
+/* ── Chat Area ────────────────────────────────── */
+.chat-area {
+  flex: 1; display: flex; flex-direction: column;
+  background: var(--chat-bg);
+  position: relative;
+}
+.chat-area.has-bg {
+  background: transparent;
+}
+.chat-area.has-bg .msg-row.in .msg-bubble {
+  background: rgba(58, 59, 64, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.chat-area.has-bg .msg-row.out .msg-bubble {
+  background: rgba(79, 126, 245, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.chat-bg-layer {
+  position: fixed; inset: 0; pointer-events: none;
+  background-size: cover; background-position: center;
+  background-repeat: no-repeat; z-index: 0;
+}
+.chat-header {
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  font-weight: 700; font-size: 1.05em;
+  display: flex; align-items: center; gap: 10px;
+  position: relative; z-index: 1;
+}
+.chat-header.glass {
+  background: rgba(30, 31, 35, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+.chat-header .avatar-small {
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-size: 0.9em; font-weight: 700;
+}
+.chat-header .header-name { flex: 1; }
+.chat-header .btn-settings {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: none; background: transparent; color: var(--text-dim);
+  font-size: 1.1em; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.chat-header .btn-settings:hover { background: var(--bubble-in); color: var(--text); }
+.chat-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim); font-size: 1.1em; flex-direction: column; gap: 10px;
+  position: relative; z-index: 1;
+}
+.chat-empty .icon { font-size: 3em; }
+.messages {
+  flex: 1; overflow-y: auto; padding: 16px 20px;
+  display: flex; flex-direction: column; gap: 4px;
+  position: relative; z-index: 1;
+}
+.msg-row { display: flex; margin-bottom: 12px; }
+.msg-row.center { justify-content: center; }
+.msg-row.center .msg-bubble { background: transparent; color: var(--text-dim); font-style: italic; font-size: 0.85em; }
+.msg-row.out { justify-content: flex-end; }
+.msg-bubble {
+  max-width: 65%; padding: 10px 14px; border-radius: 12px;
+  font-size: 0.95em; line-height: 1.5; word-break: break-word;
+}
+.msg-row.in .msg-bubble { background: var(--bubble-in); border-top-left-radius: 4px; }
+.msg-row.out .msg-bubble { background: var(--bubble-out); color: #fff; border-top-right-radius: 4px; }
+.msg-sender { font-size: 0.78em; color: #7eb8ff; margin-bottom: 2px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.msg-sender.sender-self { color: #b8c7ff; justify-content: flex-end; }
+.msg-sender img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+.media-placeholder { color: var(--text-dim); font-style: italic; }
+.msg-image {
+  max-width: 280px; max-height: 280px; border-radius: 8px;
+  cursor: pointer; display: block; margin-bottom: 6px;
+  object-fit: cover; transition: opacity 0.2s;
+}
+.msg-image:hover { opacity: 0.85; }
+.msg-row.pending .msg-bubble { opacity: 0.7; }
+.msg-row.failed .msg-bubble { outline: 2px solid var(--danger); }
+.msg-retry {
+  display: none; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--danger); color: #fff; font-size: 0.8em;
+  border: none; cursor: pointer; flex-shrink: 0; align-self: center;
+  align-items: center; justify-content: center;
+}
+.msg-row.failed .msg-retry { display: flex; }
+.img-error { opacity: 0.4; cursor: default; max-width: 100px; max-height: 60px; }
+.msg-time { font-size: 0.72em; color: var(--text-dim); margin-top: 4px; text-align: right; }
+.msg-row.out .msg-time { color: rgba(255,255,255,0.6); }
+
+/* ── Input Area ───────────────────────────────── */
+.input-area {
+  padding: 12px 20px; border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex; gap: 10px; align-items: flex-end;
+  position: relative; z-index: 1;
+  background: rgba(30, 31, 35, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.input-area textarea {
+  flex: 1; padding: 10px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bubble-in);
+  color: var(--text); resize: none; outline: none;
+  font-family: var(--font); font-size: 0.95em;
+  min-height: 42px; max-height: 120px;
+}
+.input-area textarea:focus { border-color: var(--accent); }
+.input-area button {
+  padding: 10px 20px; border: none; border-radius: var(--radius);
+  background: var(--accent); color: #fff; font-weight: 600;
+  cursor: pointer; font-size: 0.95em; transition: background 0.15s;
+  white-space: nowrap;
+}
+.input-area button:hover { background: var(--accent-hover); }
+.input-area button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Scrollbar ────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+/* ── Toast ───────────────────────────────────── */
+.toast-container {
+  position: fixed; top: 16px; right: 16px; z-index: 999;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.toast {
+  background: var(--accent); color: #fff; padding: 10px 18px;
+  border-radius: 8px; font-size: 0.9em; font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: toastIn 0.25s ease, toastOut 0.25s ease 1.5s forwards;
+  max-width: 300px;
+}
+@keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
+/* ── Batch Action Bar ────────────────────────── */
+.batch-bar {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--sidebar); border: 1px solid var(--accent); border-radius: 12px;
+  padding: 10px 20px; display: none; align-items: center; gap: 16px;
+  z-index: 150; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  font-size: 0.9em;
+}
+.msg-row.selectable { cursor: pointer; user-select: none; }
+.msg-row.selected .msg-bubble { outline: 2px solid var(--accent); outline-offset: 2px; }
+.msg-checkbox {
+  display: none; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--text-dim); flex-shrink: 0; margin-right: 8px;
+  align-items: center; justify-content: center; font-size: 0.75em;
+}
+.select-mode .msg-checkbox { display: flex; }
+.select-mode .msg-row { cursor: pointer; }
+.select-mode .msg-row.selected .msg-checkbox {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+}
+
+/* ── Status Cards ───────────────────────────── */
+.stat-card {
+  background: rgba(255,255,255,0.04); border-radius: 8px;
+  padding: 10px 14px; margin-bottom: 8px;
+}
+.stat-label { font-size: 0.82em; color: var(--text-dim); margin-bottom: 2px; }
+.stat-val { font-size: 0.9em; font-weight: 600; word-break: break-all; }
+.stat-sub { font-size: 0.78em; color: var(--text-dim); }
+.stat-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; }
+.stat-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.9s ease; }
+.stat-bar-mem { background: #f0a040; }
+
+/* ── Settings Nav ────────────────────────────── */
+.settings-nav {
+  width: 140px; flex-shrink: 0;
+  background: rgba(30, 31, 35, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid rgba(255,255,255,0.06);
+  padding: 12px 0;
+}
+.settings-nav-item {
+  padding: 10px 20px; cursor: pointer; font-size: 0.9em;
+  color: var(--text-dim); transition: all 0.15s;
+  border-left: 3px solid transparent;
+}
+.settings-nav-item:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.settings-nav-item.active {
+  color: var(--text); background: rgba(255,255,255,0.06);
+  border-left-color: var(--accent);
+}
+
+/* ── Context Menu ────────────────────────────── */
+.context-menu {
+  position: fixed; z-index: 200;
+  background: var(--sidebar); border: 1px solid var(--border);
+  border-radius: 8px; padding: 4px 0; min-width: 140px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  display: none;
+}
+.context-menu .ctx-item {
+  padding: 8px 16px; cursor: pointer; font-size: 0.9em;
+  transition: background 0.1s;
+}
+.context-menu .ctx-item:hover { background: var(--accent); }
+.context-menu .ctx-item.danger { color: var(--danger); }
+.context-menu .ctx-item.danger:hover { background: var(--danger); color: #fff; }
+
+/* ── Modal ────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100; opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+}
+.modal-overlay.show { opacity: 1; pointer-events: auto; }
+.modal-box {
+  background: var(--sidebar); border-radius: 12px;
+  padding: 24px; width: 380px; max-width: 90vw;
+  border: 1px solid var(--border);
+}
+.modal-box h3 { margin-bottom: 16px; font-size: 1.1em; }
+.modal-box label { display: block; font-size: 0.85em; color: var(--text-dim); margin-bottom: 6px; }
+.modal-box input {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--bg);
+  color: var(--text); outline: none; font-size: 0.95em; margin-bottom: 14px;
+}
+.modal-box input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.modal-actions button {
+  padding: 8px 18px; border-radius: var(--radius); border: none;
+  font-weight: 600; cursor: pointer; font-size: 0.9em;
+}
+.modal-actions .btn-cancel { background: var(--bubble-in); color: var(--text); }
+.modal-actions .btn-ok { background: var(--accent); color: #fff; }
+.modal-actions .btn-ok:hover { background: var(--accent-hover); }
+.modal-actions .btn-cancel:hover { background: #4a4b50; }
+
+/* ── Responsive ───────────────────────────────── */
+@media (max-width: 600px) {
+  .sidebar { width: 100%; min-width: unset; }
+  .chat-area { display: none; }
+  .chat-area.mobile-open { display: flex; position: fixed; inset: 0; z-index: 10; }
+}
+</style>
+</head>
+<body>
+<div class="chat-bg-layer" id="chatBgLayer"></div>
+
+<!-- ═══════════ Sidebar ═══════════ -->
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <span class="logo">🤖 NeonBot</span>
+    <span class="status" id="botStatus">● 在线</span>
+    <button class="btn-add" id="btnRefresh" title="刷新">🔄</button>
+    <button class="btn-add" id="btnAddConv" title="添加群聊">＋</button>
+  </div>
+  <div class="search-box">
+    <input type="text" id="searchInput" placeholder="🔍 搜索会话…" autocomplete="off">
+  </div>
+  <div class="conv-list" id="convList">
+    <div style="padding:20px; color:var(--text-dim); text-align:center;">加载中…</div>
+  </div>
+  <div class="sidebar-footer" style="display:flex;">
+    <span id="favBtn" style="flex:1;text-align:center;cursor:pointer;" title="收藏列表">⭐ 收藏</span>
+    <span id="aboutBtn" style="flex:1;text-align:center;cursor:pointer;" title="设置">⚙ 设置</span>
+  </div>
+</aside>
+
+<!-- ═══════════ Add Conversation Modal ═══════════ -->
+<div class="modal-overlay" id="addConvModal">
+  <div class="modal-box">
+    <h3>➕ 添加群聊</h3>
+    <label for="newConvId">群 OpenID</label>
+    <input type="text" id="newConvId" placeholder="粘贴群 group_openid…" autocomplete="off">
+    <label for="newConvName">备注名（可选）</label>
+    <input type="text" id="newConvName" placeholder="例如：摸鱼群" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancelAdd">取消</button>
+      <button class="btn-ok" id="btnOkAdd">添加</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Rename Conversation Modal ═══════════ -->
+<div class="modal-overlay" id="renameConvModal">
+  <div class="modal-box">
+    <h3>⚙ 群聊设置</h3>
+    <label for="renameConvInput">备注名</label>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="renameConvInput" placeholder="输入新备注名…" autocomplete="off" style="flex:1; margin-bottom:0;">
+      <button class="btn-ok" id="btnOkRename" style="white-space:nowrap;">保存</button>
+    </div>
+    <hr style="border-color:var(--border); margin:16px 0;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:0.9em; color:var(--text-dim);">清空聊天记录</span>
+      <button class="btn-cancel" id="btnClearHistory" style="color:var(--danger);">🗑 清空</button>
+    </div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn-cancel" id="btnCancelRename">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Settings Modal ═══════════ -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal-box" style="display:flex; gap:0; padding:0; width:560px; max-width:95vw; overflow:hidden;">
+    <!-- 左侧导航 -->
+    <div class="settings-nav" id="settingsNav">
+      <div class="settings-nav-item active" data-tab="general">通用</div>
+      <div class="settings-nav-item" data-tab="status">状态</div>
+      <div class="settings-nav-item" data-tab="about">关于</div>
+    </div>
+    <!-- 右侧内容 -->
+    <div style="flex:1; padding:24px; overflow-y:auto; max-height:70vh;">
+      <!-- 通用 -->
+      <div class="settings-tab" id="tab-general">
+        <h3 style="margin-bottom:16px;">🖼 聊天背景</h3>
+        <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
+          <input type="file" id="bgFileInput" accept="image/*" style="display:none;">
+          <button class="btn-cancel" id="btnPickBg">📁 选择图片</button>
+          <button class="btn-cancel" id="btnClearBg" style="color:var(--danger);">清除背景</button>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px;">
+          透明度
+          <input type="range" id="bgOpacity" min="5" max="100" value="20" style="flex:1;">
+          <span id="bgOpacityVal">20%</span>
+        </label>
+        <hr style="border-color:var(--border); margin:16px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.9em; color:var(--text-dim);">清空全部聊天记录</span>
+          <button class="btn-cancel" id="btnClearAllHistory" style="color:var(--danger);">🗑 清空全部</button>
+        </div>
+      </div>
+      <!-- 状态 -->
+      <div class="settings-tab" id="tab-status" style="display:none;">
+        <h3>📊 运行状态</h3>
+        <div id="statusContent" style="font-size:0.85em; color:var(--text-dim);">加载中…</div>
+      </div>
+      <!-- 关于 -->
+      <div class="settings-tab" id="tab-about" style="display:none; text-align:center;">
+        <h3>关于</h3>
+        <p style="font-size:3em;margin:12px 0;">🤖</p>
+        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.1</p>
+        <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;">📄 阅读 README.md</a>
+        <p style="color:var(--text-dim);font-size:0.85em;margin-top:12px;">Copyright © 2026 Neon. All Rights Reserved.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Context Menu ═══════════ -->
+<div class="context-menu" id="ctxMenu">
+  <div class="ctx-item" id="ctxCopy">📋 复制</div>
+  <div class="ctx-item" id="ctxForward">↗ 转发</div>
+  <div class="ctx-item" id="ctxFavorite">⭐ 收藏</div>
+  <div class="ctx-item" id="ctxRecall">↩ 撤回消息</div>
+  <div class="ctx-item" id="ctxMultiSelect">☑ 多选消息</div>
+  <div class="ctx-item danger" id="ctxDelete">🗑 删除（仅本地）</div>
+</div>
+
+<!-- ═══════════ Batch Action Bar ═══════════ -->
+<div class="batch-bar" id="batchBar">
+  <span id="batchCount">已选 0 条</span>
+  <button class="btn-cancel" id="btnCancelSelect">取消</button>
+  <button style="background:var(--danger);color:#fff;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" id="btnBatchDelete">🗑 批量删除</button>
+</div>
+
+<!-- ═══════════ Favorites Modal ═══════════ -->
+<div class="modal-overlay" id="favModal">
+  <div class="modal-box" style="max-height:70vh;overflow-y:auto;">
+    <h3>⭐ 收藏列表</h3>
+    <div id="favList" style="max-height:50vh;overflow-y:auto;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn-cancel" id="btnCloseFav">关闭</button>
+      <button class="btn-cancel" id="btnClearFav" style="color:var(--danger);">清空全部</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Forward Modal ═══════════ -->
+<div class="modal-overlay" id="forwardModal">
+  <div class="modal-box">
+    <h3>↗ 转发消息</h3>
+    <label>目标群聊</label>
+    <select id="forwardTarget" style="width:100%;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:12px;"></select>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="btnCancelForward">取消</button>
+      <button class="btn-ok" id="btnOkForward">转发</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Toast Container ═══════════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══════════ Chat Area ═══════════ -->
+<main class="chat-area" id="chatArea">
+  <div class="chat-header" id="chatHeader" style="display:none;">
+    <div class="avatar-small" id="chatAvatar">#</div>
+    <span class="header-name" id="chatName">选择会话</span>
+    <button class="btn-settings" id="btnSettings" title="设置备注">⚙</button>
+  </div>
+  <div class="chat-empty" id="chatEmpty">
+    <div class="icon">💬</div>
+    <div>选择一个会话开始接管</div>
+  </div>
+  <div class="messages" id="messages" style="display:none;"></div>
+  <div class="input-area" id="inputArea" style="display:none;">
+    <textarea id="msgInput" rows="1" placeholder="输入消息… (Enter 发送, Shift+Enter 换行)" disabled></textarea>
+    <button id="sendBtn" disabled>发送</button>
+  </div>
+</main>
+
+<script>
+// ── 状态 ────────────────────────────────────────────
+let currentConv = null;
+let conversations = [];
+let lastMsgId = 0;  // 当前会话最后一条消息 ID，用于增量拉取
+let ws = null;
+
+const $ = (s) => document.querySelector(s);
+const $convList = $('#convList');
+const $messages = $('#messages');
+const $chatEmpty = $('#chatEmpty');
+const $chatHeader = $('#chatHeader');
+const $chatName = $('#chatName');
+const $chatAvatar = $('#chatAvatar');
+const $inputArea = $('#inputArea');
+const $msgInput = $('#msgInput');
+const $sendBtn = $('#sendBtn');
+const $searchInput = $('#searchInput');
+const $botStatus = $('#botStatus');
+
+// ── API ─────────────────────────────────────────────
+const API = (url, opts = {}) => fetch(url, opts).then(r => r.json());
+
+// ── WebSocket ───────────────────────────────────────
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    console.log('[WS] connected');
+    $botStatus.textContent = '● 在线';
+    $botStatus.className = 'status';
+  };
+
+  ws.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      if (data.type === 'new_message') {
+        handleIncomingMessage(data.data);
+      } else if (data.type === 'recall_message') {
+        handleRecallMessage(data.data);
+      } else if (data.type === 'delete_message') {
+        handleDeleteMessage(data.data);
+      } else if (data.type === 'batch_delete') {
+        handleBatchDelete(data.data);
+      } else if (data.type === 'clear_all') {
+        // 清空当前界面
+        $messages.innerHTML = '';
+        lastMsgId = 0;
+        conversations.forEach(c => { c.last_message = ''; c.unread_count = 0; });
+        renderConvList($searchInput.value);
+      }
+    } catch (e) {
+      console.warn('[WS] parse error', e);
+    }
+  };
+
+  ws.onclose = () => {
+    $botStatus.textContent = '● 离线';
+    $botStatus.className = 'status offline';
+    setTimeout(connectWS, 3000);
+  };
+
+  ws.onerror = () => ws.close();
+}
+
+// ── 处理新消息（来自 Bot 或自己发出） ──────────────
+function handleIncomingMessage(msg) {
+  // 更新/插入会话列表
+  const idx = conversations.findIndex(c => c.id === msg.conversation_id);
+  if (idx >= 0) {
+    conversations[idx].last_message = msg.content;
+    conversations[idx].unread_count = (conversations[idx].unread_count || 0);
+    if (msg.conversation_id !== currentConv) {
+      conversations[idx].unread_count++;
+    }
+    // 移到顶部
+    const [item] = conversations.splice(idx, 1);
+    conversations.unshift(item);
+  } else {
+    // 新会话，加入列表
+    conversations.unshift({
+      id: msg.conversation_id,
+      name: msg.conversation_id,
+      type: 'group',
+      avatar_url: '',
+      last_message: msg.content,
+      unread_count: currentConv === msg.conversation_id ? 0 : 1,
+    });
+  }
+  renderConvList();
+
+  // 如果当前正在看这个会话，追加消息并更新 lastMsgId 防止重复
+  if (currentConv === msg.conversation_id) {
+    // 乐观更新去重：msg-id 已存在 或 内容正在发送中
+    if (msg.id && document.querySelector(`.msg-row[data-msg-id="${msg.id}"]`)) return;
+    if (msg.direction === 'outgoing' && pendingContents.has(msg.content)) return;
+    appendMessage(msg, true);
+    if (msg.id) lastMsgId = Math.max(lastMsgId, msg.id);
+  }
+}
+
+// ── 渲染会话列表 ────────────────────────────────────
+function renderConvList(filter = '') {
+  const q = filter.toLowerCase();
+  const filtered = conversations.filter(c =>
+    !q || c.name.toLowerCase().includes(q) || c.id.toLowerCase().includes(q)
+  );
+
+  $convList.innerHTML = filtered.length === 0
+    ? '<div style="padding:20px;color:var(--text-dim);text-align:center;">暂无会话</div>'
+    : filtered.map(c => `
+      <div class="conv-item${c.id === currentConv ? ' active' : ''}"
+           data-id="${c.id}" onclick="selectConv('${c.id}')">
+        <div class="avatar">${(c.name || c.id)[0]}</div>
+        <div class="info">
+          <div class="name">${escHtml(c.name || c.id)}</div>
+          <div class="preview">${escHtml(c.last_message || '暂无消息')}</div>
+        </div>
+        ${c.unread_count ? `<span class="badge">${c.unread_count > 99 ? '99+' : c.unread_count}</span>` : ''}
+      </div>
+    `).join('');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+// ── 选择会话 ────────────────────────────────────────
+async function selectConv(convId) {
+  currentConv = convId;
+  $chatEmpty.style.display = 'none';
+  $messages.style.display = 'flex';
+  $chatHeader.style.display = 'flex';
+  $inputArea.style.display = 'flex';
+  $msgInput.disabled = false;
+  $sendBtn.disabled = false;
+  $msgInput.focus();
+
+  // 会话信息
+  const conv = conversations.find(c => c.id === convId);
+  if (conv) {
+    $chatName.textContent = conv.name || conv.id;
+    $chatAvatar.textContent = (conv.name || conv.id)[0];
+  }
+
+  // 加载历史消息
+  const data = await API(`/api/messages/${convId}?limit=50`);
+  $messages.innerHTML = '';
+  const msgs = data.messages || [];
+  msgs.forEach(m => appendMessage(m, false));
+  lastMsgId = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
+
+  // 滚动到底部
+  scrollBottom();
+  renderConvList($searchInput.value);
+}
+
+// ── 追加单条消息 ────────────────────────────────────
+function appendMessage(msg, scroll) {
+  const div = document.createElement('div');
+  div.className = `msg-row ${msg.direction === 'outgoing' ? 'out' : 'in'}`;
+  div.dataset.msgId = msg.id || '';
+  div.dataset.msgDirection = msg.direction || '';
+  div.dataset.msgContent = msg.content || '';
+  div.dataset.msgSender = msg.sender_name || '';
+  div.dataset.msgSenderAvatar = msg.sender_avatar || '';
+  div.dataset.msgTimestamp = msg.timestamp || '';
+  div.addEventListener('contextmenu', onMsgContextMenu);
+
+  const time = msg.timestamp ? msg.timestamp.replace('T', ' ').substring(0, 16) : '';
+
+  // 解析附件
+  let attachHtml = '';
+  try {
+    const attachments = typeof msg.attachments === 'string' ? JSON.parse(msg.attachments) : (msg.attachments || []);
+    for (const a of attachments) {
+      if (a.content_type && a.content_type.startsWith('image/') && a.url) {
+        const proxyUrl = `/api/image?url=${encodeURIComponent(a.url)}`;
+        attachHtml += `<img src="${escHtml(proxyUrl)}" class="msg-image" alt="${escHtml(a.filename || '图片')}" loading="lazy" onclick="viewImage('${escHtml(proxyUrl)}')" onerror="this.alt='[图片加载失败]';this.classList.add('img-error');">`;
+      }
+    }
+  } catch (e) {}
+
+  const isPlaceholder = !attachHtml && (msg.content === '[富媒体文件]' || msg.content === '[图片]');
+
+  div.innerHTML = `
+    <div class="msg-checkbox">✓</div>
+    <div class="msg-bubble">
+      ${msg.sender_name
+        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}">${msg.sender_avatar ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="">` : ''}${escHtml(msg.sender_name)}</div>`
+        : ''}
+      ${attachHtml}
+      ${msg.content && msg.content !== '[图片]' ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${escHtml(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtml(msg.content)}</div>` : '')}
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+
+  $messages.appendChild(div);
+  if (scroll) scrollBottom();
+}
+
+// 点击查看大图
+function viewImage(src) {
+  const w = window.open('');
+  w.document.write(`<title>图片预览</title><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#000;}</style><img src="${escHtml(src)}" style="max-width:100%;max-height:100vh;" onerror="this.alt='加载失败'">`);
+}
+
+function scrollBottom() {
+  // 先立刻滚一次
+  $messages.scrollTop = $messages.scrollHeight;
+  // 等一帧再滚（处理 DOM 渲染）
+  requestAnimationFrame(() => {
+    $messages.scrollTop = $messages.scrollHeight;
+  });
+  // 等所有图片加载完再滚一次
+  const imgs = $messages.querySelectorAll('.msg-image');
+  if (imgs.length > 0) {
+    let pending = imgs.length;
+    const onDone = () => {
+      pending--;
+      if (pending === 0) {
+        $messages.scrollTop = $messages.scrollHeight;
+      }
+    };
+    imgs.forEach(img => {
+      if (img.complete) {
+        onDone();
+      } else {
+        img.addEventListener('load', onDone, { once: true });
+        img.addEventListener('error', onDone, { once: true });
+      }
+    });
+    // 兜底：300ms 后再滚一次
+    setTimeout(() => { $messages.scrollTop = $messages.scrollHeight; }, 300);
+  }
+}
+
+// ── 发送消息 ────────────────────────────────────────
+let pendingId = 0;
+let pendingContents = new Set();  // 去重用：正在发送中的内容
+
+async function sendMessage(retryMsgId) {
+  const isRetry = !!retryMsgId;
+  let content;
+  if (isRetry) {
+    // 重发：从 data 属性取内容
+    const el = document.querySelector(`.msg-row[data-pending-id="${retryMsgId}"]`);
+    if (!el) return;
+    content = el.dataset.msgContent;
+    // 移除旧的失败气泡
+    el.remove();
+  } else {
+    content = $msgInput.value.trim();
+    if (!content || !currentConv) return;
+  }
+
+  const tempId = isRetry ? retryMsgId : `pending_${++pendingId}`;
+
+  // 立即在 UI 显示气泡（乐观更新）
+  if (!isRetry) {
+    const fakeMsg = {
+      id: 0,
+      pending_id: tempId,
+      conversation_id: currentConv,
+      sender_name: '',
+      content: content,
+      direction: 'outgoing',
+      timestamp: new Date().toISOString(),
+      sender_avatar: '',
+    };
+    appendPendingMessage(fakeMsg);
+    $msgInput.value = '';
+    $msgInput.style.height = 'auto';
+  }
+
+  pendingContents.add(content);
+  $sendBtn.disabled = true;
+
+  try {
+    const result = await API('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conv_id: currentConv, content, msg_type: 0 }),
+    });
+    if (result.error) {
+      markMessageFailed(tempId);
+    } else {
+      replacePendingMessage(tempId, result.message);
+    }
+  } catch (e) {
+    markMessageFailed(tempId);
+  } finally {
+    pendingContents.delete(content);
+    $sendBtn.disabled = false;
+    $msgInput.disabled = false;
+    if (!isRetry) $msgInput.focus();
+  }
+}
+
+function appendPendingMessage(msg) {
+  const div = document.createElement('div');
+  div.className = 'msg-row out pending';
+  div.dataset.pendingId = msg.pending_id;
+  div.dataset.msgContent = msg.content;
+
+  div.innerHTML = `
+    <div class="msg-bubble">
+      ${msg.sender_name ? `<div class="msg-sender sender-self">${escHtml(msg.sender_name)}</div>` : ''}
+      <div>${escHtml(msg.content)}</div>
+      <div class="msg-time">发送中…</div>
+    </div>
+    <button class="msg-retry" onclick="sendMessage('${msg.pending_id}')" title="重发">!</button>
+  `;
+
+  $messages.appendChild(div);
+  scrollBottom();
+}
+
+function replacePendingMessage(pendingId, realMsg) {
+  const el = document.querySelector(`.msg-row[data-pending-id="${pendingId}"]`);
+  if (!el) return;
+  // 用真实消息替换
+  el.classList.remove('pending');
+  el.dataset.msgId = realMsg.id || '';
+  el.dataset.msgDirection = 'outgoing';
+  el.dataset.msgContent = realMsg.content || '';
+  el.dataset.msgSender = realMsg.sender_name || '';
+  el.dataset.msgSenderAvatar = realMsg.sender_avatar || '';
+  el.dataset.msgTimestamp = realMsg.timestamp || '';
+  el.removeAttribute('data-pending-id');
+
+  const time = realMsg.timestamp ? realMsg.timestamp.replace('T', ' ').substring(0, 16) : '';
+  el.innerHTML = `
+    <div class="msg-bubble">
+      ${realMsg.sender_name ? `<div class="msg-sender sender-self"><img src="${escHtml(realMsg.sender_avatar || '')}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.style.display='none'">${escHtml(realMsg.sender_name)}</div>` : ''}
+      <div>${escHtml(realMsg.content)}</div>
+      <div class="msg-time">${time}</div>
+    </div>
+  `;
+
+  // 更新 lastMsgId
+  if (realMsg.id) lastMsgId = Math.max(lastMsgId, realMsg.id);
+}
+
+function markMessageFailed(pendingId) {
+  const el = document.querySelector(`.msg-row[data-pending-id="${pendingId}"]`);
+  if (!el) return;
+  el.classList.remove('pending');
+  el.classList.add('failed');
+  el.querySelector('.msg-time').textContent = '发送失败';
+}
+
+// ── 事件绑定 ────────────────────────────────────────
+$sendBtn.addEventListener('click', sendMessage);
+$msgInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+// 自动调整输入框高度
+$msgInput.addEventListener('input', () => {
+  $msgInput.style.height = 'auto';
+  $msgInput.style.height = Math.min($msgInput.scrollHeight, 120) + 'px';
+});
+$searchInput.addEventListener('input', () => renderConvList($searchInput.value));
+
+// ── 添加群聊弹窗 ────────────────────────────────────
+const $addModal = $('#addConvModal');
+const $newConvId = $('#newConvId');
+const $newConvName = $('#newConvName');
+
+function showAddModal() {
+  $addModal.classList.add('show');
+  $newConvId.value = '';
+  $newConvName.value = '';
+  $newConvId.focus();
+}
+function hideAddModal() {
+  $addModal.classList.remove('show');
+}
+
+$('#btnAddConv').addEventListener('click', showAddModal);
+$('#btnCancelAdd').addEventListener('click', hideAddModal);
+$addModal.addEventListener('click', (e) => {
+  if (e.target === $addModal) hideAddModal();
+});
+
+$('#btnOkAdd').addEventListener('click', async () => {
+  const groupOpenid = $newConvId.value.trim();
+  if (!groupOpenid) { alert('请输入群 OpenID'); return; }
+  const name = $newConvName.value.trim();
+
+  try {
+    const result = await API('/api/conversations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_openid: groupOpenid, name }),
+    });
+    if (result.error) { alert('添加失败: ' + result.error); return; }
+
+    hideAddModal();
+
+    // 刷新会话列表
+    const data = await API('/api/conversations');
+    conversations = data.conversations || [];
+    renderConvList();
+
+    // 自动选中新添加的群
+    selectConv(result.id);
+  } catch (e) {
+    alert('网络错误: ' + e.message);
+  }
+});
+
+// Enter 快捷提交
+$newConvId.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#btnOkAdd').click();
+});
+$newConvName.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#btnOkAdd').click();
+});
+
+// ── 重命名弹窗 ────────────────────────────────────────
+const $renameModal = $('#renameConvModal');
+const $renameInput = $('#renameConvInput');
+
+function showRenameModal() {
+  if (!currentConv) return;
+  const conv = conversations.find(c => c.id === currentConv);
+  $renameInput.value = conv ? conv.name : '';
+  $renameModal.classList.add('show');
+  $renameInput.focus();
+  $renameInput.select();
+}
+function hideRenameModal() {
+  $renameModal.classList.remove('show');
+}
+
+$('#btnSettings').addEventListener('click', showRenameModal);
+$('#btnCancelRename').addEventListener('click', hideRenameModal);
+$renameModal.addEventListener('click', (e) => {
+  if (e.target === $renameModal) hideRenameModal();
+});
+$renameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#btnOkRename').click();
+  if (e.key === 'Escape') hideRenameModal();
+});
+
+$('#btnOkRename').addEventListener('click', async () => {
+  const newName = $renameInput.value.trim();
+  if (!newName || !currentConv) return;
+
+  try {
+    const result = await API(`/api/conversations/${currentConv}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    if (result.error) { alert('重命名失败: ' + result.error); return; }
+
+    hideRenameModal();
+
+    // 更新本地缓存 & UI
+    const conv = conversations.find(c => c.id === currentConv);
+    if (conv) conv.name = newName;
+    $chatName.textContent = newName;
+    renderConvList($searchInput.value);
+  } catch (e) {
+    alert('网络错误: ' + e.message);
+  }
+});
+
+// ── 聊天背景设置 ──────────────────────────────────────
+function getBgSettings() {
+  try { return JSON.parse(localStorage.getItem('neonbot_bg') || '{}'); }
+  catch { return {}; }
+}
+function saveBgSettings(s) { localStorage.setItem('neonbot_bg', JSON.stringify(s)); }
+function applyBg() {
+  const s = getBgSettings();
+  const $bg = $('#chatBgLayer');
+  if (s.image) {
+    $bg.style.backgroundImage = `url(${s.image})`;
+    $bg.style.opacity = (s.opacity || 20) / 100;
+    $('#chatHeader').classList.add('glass');
+    $('#chatArea').classList.add('has-bg');
+  } else {
+    $bg.style.backgroundImage = '';
+    $bg.style.opacity = '0';
+    $('#chatHeader').classList.remove('glass');
+    $('#chatArea').classList.remove('has-bg');
+  }
+}
+// 初始化时应用背景
+applyBg();
+
+$('#btnPickBg').addEventListener('click', () => $('#bgFileInput').click());
+$('#bgFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const s = getBgSettings();
+    s.image = reader.result;
+    saveBgSettings(s);
+    applyBg();
+  };
+  reader.readAsDataURL(file);
+});
+$('#btnClearBg').addEventListener('click', () => {
+  const s = getBgSettings();
+  delete s.image;
+  saveBgSettings(s);
+  applyBg();
+  $('#bgFileInput').value = '';
+});
+$('#bgOpacity').addEventListener('input', function() {
+  $('#bgOpacityVal').textContent = this.value + '%';
+  const s = getBgSettings();
+  s.opacity = parseInt(this.value);
+  saveBgSettings(s);
+  applyBg();
+});
+// 打开设置时同步状态
+function syncBgUI() {
+  const s = getBgSettings();
+  $('#bgOpacity').value = s.opacity || 20;
+  $('#bgOpacityVal').textContent = (s.opacity || 20) + '%';
+}
+
+$('#btnClearAllHistory').addEventListener('click', async () => {
+  if (!confirm('确定要清空全部聊天记录吗？此操作不可撤销。')) return;
+  try {
+    const r = await API('/api/messages', { method: 'DELETE' });
+    if (r.error) { alert('清空失败: ' + r.error); }
+  } catch (e) { alert('网络错误: ' + e.message); }
+});
+
+$('#btnClearHistory').addEventListener('click', async () => {
+  if (!currentConv) return;
+  if (!confirm('确定要清空该群聊的所有本地聊天记录吗？此操作不可撤销。')) return;
+
+  try {
+    const result = await API(`/api/messages/${currentConv}`, { method: 'DELETE' });
+    if (result.error) { alert('清空失败: ' + result.error); return; }
+
+    hideRenameModal();
+
+    // 清空当前界面
+    $messages.innerHTML = '';
+    lastMsgId = 0;
+
+    // 更新会话列表
+    const conv = conversations.find(c => c.id === currentConv);
+    if (conv) { conv.last_message = ''; conv.unread_count = 0; }
+    renderConvList($searchInput.value);
+  } catch (e) {
+    alert('网络错误: ' + e.message);
+  }
+});
+
+// ── 右键菜单 ────────────────────────────────────────
+let ctxTargetMsg = null;
+let selectMode = false;
+let selectedMsgs = new Set();
+const $ctxMenu = $('#ctxMenu');
+const $batchBar = $('#batchBar');
+const $batchCount = $('#batchCount');
+
+function onMsgContextMenu(e) {
+  e.preventDefault();
+  if (selectMode) return; // 多选模式下不弹右键菜单
+  // 从 data 属性取，取不到就拿 DOM 文本
+  let content = this.dataset.msgContent || '';
+  if (!content) {
+    const bubble = this.querySelector('.msg-bubble');
+    if (bubble) content = bubble.textContent.replace(/^\s+|\s+$/g, '');
+  }
+  // 提取图片链接
+  const imgs = this.querySelectorAll('.msg-image');
+  const imgUrls = [...imgs].map(img => img.src || '').filter(Boolean);
+
+  ctxTargetMsg = {
+    id: parseInt(this.dataset.msgId) || 0,
+    direction: this.dataset.msgDirection,
+    content: content,
+    imgUrls: imgUrls,
+    sender_name: this.dataset.msgSender || '',
+    sender_avatar: this.dataset.msgSenderAvatar || '',
+    timestamp: this.dataset.msgTimestamp || '',
+    el: this,
+  };
+  $('#ctxRecall').style.display = ctxTargetMsg.direction === 'outgoing' ? '' : 'none';
+  $('#ctxMultiSelect').style.display = '';
+  $ctxMenu.style.display = 'block';
+  $ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
+  $ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 80) + 'px';
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.context-menu')) {
+    $ctxMenu.style.display = 'none';
+    // 不在这里清空 ctxTargetMsg，让转发/收藏弹窗还能用到
+    // 弹窗关闭时各自负责清理
+  }
+});
+
+// ── Toast ─────────────────────────────────────────────
+function showToast(msg) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  $('#toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 2000);
+}
+
+// ── 收藏 ─────────────────────────────────────────────
+function getFavorites() {
+  try { return JSON.parse(localStorage.getItem('neonbot_fav') || '[]'); }
+  catch { return []; }
+}
+function saveFavorites(favs) { localStorage.setItem('neonbot_fav', JSON.stringify(favs)); }
+
+function renderFavList() {
+  const favs = getFavorites();
+  const $favList = $('#favList');
+  if (favs.length === 0) {
+    $favList.innerHTML = '<div style="color:var(--text-dim);text-align:center;padding:20px;">暂无收藏</div>';
+    return;
+  }
+  $favList.innerHTML = [...favs].reverse().map((f, i) => `
+    <div style="padding:8px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px;">
+      ${f.avatar ? `<img src="${escHtml(f.avatar)}" style="width:32px;height:32px;border-radius:50%;flex-shrink:0;margin-top:2px;" onerror="this.style.display='none'">` : ''}
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:0.75em;color:var(--text-dim);">${escHtml(f.sender || '未知')} · ${escHtml(f.time || '')}</div>
+        ${(f.imgUrls || []).map(u => `<a href="${escHtml(u)}" target="_blank"><img src="${escHtml(u)}" style="max-width:200px;max-height:150px;border-radius:6px;display:block;margin:4px 0;cursor:pointer;" onerror="this.style.display='none'"></a>`).join('')}
+        ${f.content && f.content !== '[图片]' ? `<div style="font-size:0.9em;word-break:break-word;">${escHtml(f.content)}</div>` : (!f.imgUrls || f.imgUrls.length === 0 ? `<div style="font-size:0.9em;color:var(--text-dim);font-style:italic;">[图片]</div>` : '')}
+      </div>
+      <button style="background:none;border:none;color:var(--danger);cursor:pointer;flex-shrink:0;" onclick="removeFav(${i})" title="取消收藏">✕</button>
+    </div>
+  `).join('');
+}
+
+function addFavorite(msg) {
+  const favs = getFavorites();
+  favs.push({
+    content: msg.content || '',
+    imgUrls: msg.imgUrls || [],
+    sender: msg.sender_name || '',
+    avatar: msg.sender_avatar || '',
+    time: (msg.timestamp || '').substring(0, 16),
+    conv_id: currentConv || '',
+    saved_at: new Date().toISOString(),
+  });
+  saveFavorites(favs);
+}
+
+function removeFav(idx) {
+  if (!confirm('确定取消收藏这条消息吗？')) return;
+  const favs = getFavorites();
+  favs.splice(favs.length - 1 - idx, 1);
+  saveFavorites(favs);
+  renderFavList();
+}
+
+// ── 设置弹窗 ─────────────────────────────────────────
+const $settingsModal = $('#settingsModal');
+$('#aboutBtn').addEventListener('click', () => {
+  syncBgUI();
+  $settingsModal.classList.add('show');
+});
+$settingsModal.addEventListener('click', (e) => {
+  if (e.target === $settingsModal) $settingsModal.classList.remove('show');
+});
+// Tab 切换
+$('#settingsNav').addEventListener('click', (e) => {
+  const item = e.target.closest('.settings-nav-item');
+  if (!item) return;
+  document.querySelectorAll('.settings-nav-item').forEach(el => el.classList.remove('active'));
+  item.classList.add('active');
+  document.querySelectorAll('.settings-tab').forEach(el => el.style.display = 'none');
+  const tab = document.getElementById('tab-' + item.dataset.tab);
+  if (tab) {
+    tab.style.display = '';
+    if (item.dataset.tab === 'status') loadStatus();
+    else stopStatusRefresh();
+  }
+});
+
+// ── 状态页面 ─────────────────────────────────────────
+let statusTimer = null;
+
+function stopStatusRefresh() {
+  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+}
+
+async function loadStatus() {
+  stopStatusRefresh();
+  await refreshStatus();
+  statusTimer = setInterval(refreshStatus, 1000);
+}
+
+async function refreshStatus() {
+  const $sc = $('#statusContent');
+  try {
+    const info = await API('/api/system-info');
+    $sc.innerHTML = `
+      <div style="text-align:center;margin-bottom:12px;">
+        <span style="font-size:1.1em;font-weight:700;">🤖 ${escHtml(info.bot_name)} v26.7.1</span>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🖥 系统</div>
+        <div class="stat-val">${escHtml(info.os)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🔲 CPU</div>
+        <div class="stat-val">${escHtml(info.cpu_model)}</div>
+        <div class="stat-sub">使用率 ${info.cpu_percent}%</div>
+        <div class="stat-bar"><div class="stat-bar-fill" style="width:${info.cpu_percent}%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">📦 内存</div>
+        <div class="stat-val">${info.mem_used} / ${info.mem_total} GB</div>
+        <div class="stat-sub">${info.mem_percent}%</div>
+        <div class="stat-bar"><div class="stat-bar-fill stat-bar-mem" style="width:${info.mem_percent}%"></div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">⏱ 系统已运行</div>
+        <div class="stat-val">${info.sys_uptime}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🤖 Bot已运行</div>
+        <div class="stat-val">${info.bot_uptime}</div>
+      </div>`;
+  } catch (e) {
+    $sc.innerHTML = '<div style="color:var(--danger);">加载失败</div>';
+  }
+}
+
+$('#favBtn').addEventListener('click', () => {
+  renderFavList();
+  $('#favModal').classList.add('show');
+});
+$('#btnCloseFav').addEventListener('click', () => $('#favModal').classList.remove('show'));
+$('#favModal').addEventListener('click', (e) => { if (e.target === $('#favModal')) $('#favModal').classList.remove('show'); });
+$('#btnClearFav').addEventListener('click', () => {
+  if (!confirm('确定清空全部收藏？')) return;
+  saveFavorites([]);
+  renderFavList();
+});
+
+// ── 右键菜单事件 ──────────────────────────────────────
+$('#ctxCopy').addEventListener('click', async () => {
+  const imgs = ctxTargetMsg?.el?.querySelectorAll('.msg-image');
+  if (imgs && imgs.length > 0) {
+    // 复制第一张图片为图片格式
+    try {
+      const resp = await fetch(imgs[0].src);
+      const blob = await resp.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    } catch (e) {
+      // 降级：复制图片链接
+      navigator.clipboard.writeText(imgs[0].src).catch(() => {});
+    }
+  } else if (ctxTargetMsg?.content) {
+    navigator.clipboard.writeText(ctxTargetMsg.content).catch(() => {});
+  }
+  $ctxMenu.style.display = 'none';
+});
+
+$('#ctxForward').addEventListener('click', () => {
+  if (!ctxTargetMsg?.content && !ctxTargetMsg?.el?.querySelector('.msg-image')) return;
+  // 填充目标列表（包括当前群聊）
+  const $sel = $('#forwardTarget');
+  $sel.innerHTML = conversations
+    .map(c => `<option value="${escHtml(c.id)}"${c.id === currentConv ? ' selected' : ''}>${escHtml(c.name || c.id)}</option>`)
+    .join('');
+  $('#forwardModal').classList.add('show');
+  $ctxMenu.style.display = 'none';
+});
+
+function closeForwardModal() {
+  $('#forwardModal').classList.remove('show');
+  ctxTargetMsg = null;
+}
+$('#btnCancelForward').addEventListener('click', closeForwardModal);
+$('#forwardModal').addEventListener('click', (e) => { if (e.target === $('#forwardModal')) closeForwardModal(); });
+
+$('#btnOkForward').addEventListener('click', async () => {
+  const targetId = $('#forwardTarget').value;
+  if (!targetId) return;
+  // 文字内容 + 图片链接
+  let content = ctxTargetMsg?.content || '';
+  const imgs = ctxTargetMsg?.el?.querySelectorAll('.msg-image');
+  if (imgs && imgs.length > 0) {
+    const imgUrls = [...imgs].map(img => img.src.replace('/api/image?url=', '')).map(decodeURIComponent);
+    content = content ? content + '\n' + imgUrls.join('\n') : imgUrls.join('\n');
+  }
+  if (!content.trim()) { alert('没有可转发的内容'); return; }
+
+  try {
+    const r = await API('/api/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conv_id: targetId, content, msg_type: 0 }),
+    });
+    if (r.error) { alert('转发失败: ' + r.error); return; }
+    $('#forwardModal').classList.remove('show');
+  } catch (e) { alert('网络错误: ' + e.message); }
+});
+
+$('#ctxFavorite').addEventListener('click', () => {
+  if (!ctxTargetMsg) return;
+  const msg = ctxTargetMsg;
+  addFavorite(msg);
+  showToast('⭐ 已收藏');
+  $ctxMenu.style.display = 'none';
+});
+
+$('#ctxRecall').addEventListener('click', async () => {
+  if (!ctxTargetMsg?.id) return;
+  try {
+    const r = await API(`/api/recall/${ctxTargetMsg.id}`, { method: 'POST' });
+    if (r.error) { alert('撤回失败: ' + r.error); }
+  } catch (e) { alert('网络错误: ' + e.message); }
+  $ctxMenu.style.display = 'none';
+});
+
+$('#ctxMultiSelect').addEventListener('click', () => {
+  enterSelectMode();
+  // 把当前右键的消息自动选中
+  if (ctxTargetMsg?.id) {
+    selectedMsgs.add(ctxTargetMsg.id);
+    ctxTargetMsg.el.classList.add('selected');
+    updateBatchBar();
+  }
+  $ctxMenu.style.display = 'none';
+});
+
+$('#ctxDelete').addEventListener('click', async () => {
+  if (!ctxTargetMsg?.id) return;
+  if (!confirm('确定要删除这条消息吗？（仅本地删除，不影响 QQ 端）')) return;
+  try {
+    const r = await API(`/api/message/${ctxTargetMsg.id}`, { method: 'DELETE' });
+    if (r.error) { alert('删除失败: ' + r.error); }
+  } catch (e) { alert('网络错误: ' + e.message); }
+  $ctxMenu.style.display = 'none';
+});
+
+// ── 多选模式 ─────────────────────────────────────────
+function enterSelectMode() {
+  selectMode = true;
+  selectedMsgs.clear();
+  $messages.classList.add('select-mode');
+  $batchBar.style.display = 'flex';
+  updateBatchBar();
+  // 绑定点击事件
+  $messages.querySelectorAll('.msg-row').forEach(row => {
+    if (row.classList.contains('center')) return; // 跳过撤回提示
+    row.classList.add('selectable');
+    row.onclick = (e) => {
+      e.preventDefault();
+      const mid = parseInt(row.dataset.msgId) || 0;
+      if (!mid) return;
+      if (selectedMsgs.has(mid)) {
+        selectedMsgs.delete(mid);
+        row.classList.remove('selected');
+      } else {
+        selectedMsgs.add(mid);
+        row.classList.add('selected');
+      }
+      updateBatchBar();
+    };
+  });
+}
+
+function exitSelectMode() {
+  selectMode = false;
+  selectedMsgs.clear();
+  $messages.classList.remove('select-mode');
+  $messages.querySelectorAll('.msg-row').forEach(row => {
+    row.classList.remove('selectable', 'selected');
+    row.onclick = null;
+  });
+  $batchBar.style.display = 'none';
+}
+
+function updateBatchBar() {
+  $batchCount.textContent = `已选 ${selectedMsgs.size} 条`;
+}
+
+$('#btnCancelSelect').addEventListener('click', exitSelectMode);
+
+$('#btnBatchDelete').addEventListener('click', async () => {
+  if (selectedMsgs.size === 0) return;
+  if (!confirm(`确定要删除选中的 ${selectedMsgs.size} 条消息吗？（仅本地删除）`)) return;
+  try {
+    const r = await API('/api/messages/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [...selectedMsgs] }),
+    });
+    if (r.error) { alert('删除失败: ' + r.error); return; }
+    exitSelectMode();
+  } catch (e) { alert('网络错误: ' + e.message); }
+});
+
+// ── 处理 WebSocket 撤回/删除事件 ─────────────────────
+function handleRecallMessage(data) {
+  const el = document.querySelector(`.msg-row[data-msg-id="${data.id}"]`);
+  if (el) {
+    const who = data.bot_name || 'Bot';
+    el.innerHTML = `<div class="msg-bubble">${escHtml(who)} 撤回了一条消息</div>`;
+    el.classList.add('center');
+    el.classList.remove('in', 'out');
+  }
+}
+
+function handleDeleteMessage(data) {
+  const el = document.querySelector(`.msg-row[data-msg-id="${data.id}"]`);
+  if (el) el.remove();
+}
+
+function handleBatchDelete(data) {
+  (data.ids || []).forEach(id => {
+    const el = document.querySelector(`.msg-row[data-msg-id="${id}"]`);
+    if (el) el.remove();
+  });
+}
+
+// ── 刷新 ────────────────────────────────────────────
+async function refreshConversations(silent = false) {
+  try {
+    // 刷新会话列表
+    const data = await API('/api/conversations');
+    conversations = data.conversations || [];
+    renderConvList($searchInput.value);
+
+    // 如果打开了会话，增量拉取新消息
+    if (currentConv && lastMsgId > 0) {
+      const msgData = await API(`/api/messages/${currentConv}?limit=50`);
+      const msgs = msgData.messages || [];
+      // 只追加 lastMsgId 之后的新消息
+      const newMsgs = msgs.filter(m => m.id > lastMsgId);
+      newMsgs.forEach(m => appendMessage(m, true));
+      if (newMsgs.length > 0) {
+        lastMsgId = newMsgs[newMsgs.length - 1].id;
+        if (!silent) scrollBottom();
+      }
+    }
+  } catch (e) {
+    console.error('刷新失败', e);
+  }
+}
+
+// 刷新按钮
+let refreshTimer = null;
+$('#btnRefresh').addEventListener('click', () => refreshConversations(false));
+
+// 每 5 秒自动刷新
+refreshTimer = setInterval(() => refreshConversations(true), 5000);
+
+// ── 初始化 ──────────────────────────────────────────
+async function init() {
+  connectWS();
+  await refreshConversations(false);
+}
+
+init();
+</script>
+</body>
+</html>

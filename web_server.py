@@ -1,0 +1,402 @@
+"""
+web_server.py — FastAPI + WebSocket 实时推送
+桥接 QQ Bot ↔ WebUI
+"""
+import asyncio
+import json
+import queue
+import os
+from typing import Optional
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
+from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+import aiohttp
+from urllib.parse import unquote
+
+from database import (
+    init_db, get_conversations, get_messages, get_recent_messages,
+    save_message, upsert_conversation, reset_unread,
+)
+from PatchActiveMsg import send_group_msg, recall_group_msg
+
+# ── 线程安全消息桥 ──────────────────────────────────────
+# bot 线程 → FastAPI 主线程
+message_queue: queue.Queue = queue.Queue()
+
+# ── FastAPI ─────────────────────────────────────────────
+app = FastAPI(title="NeonBotChat", version="0.1.0")
+
+# 静态文件
+TEMPLATES = os.path.join(os.path.dirname(__file__), "templates")
+if os.path.isdir(TEMPLATES):
+    app.mount("/static", StaticFiles(directory=TEMPLATES), name="static")
+
+
+# ── WebSocket 连接管理 ──────────────────────────────────
+
+class ConnectionManager:
+    def __init__(self):
+        self._connections: list[WebSocket] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self._connections.append(ws)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        if ws in self._connections:
+            self._connections.remove(ws)
+
+    async def broadcast(self, data: dict) -> None:
+        dead: list[WebSocket] = []
+        payload = json.dumps(data, ensure_ascii=False)
+        for ws in self._connections:
+            try:
+                await ws.send_text(payload)
+            except Exception:
+                dead.append(ws)
+        for ws in dead:
+            self.disconnect(ws)
+
+    @property
+    def online_count(self) -> int:
+        return len(self._connections)
+
+
+manager = ConnectionManager()
+
+
+# ── 后台任务：轮询 bot 消息队列 ─────────────────────────
+
+async def pump_bot_messages() -> None:
+    """把 bot 线程推送的消息转发到所有 WebSocket 客户端"""
+    loop = asyncio.get_event_loop()
+    while True:
+        try:
+            msg = await loop.run_in_executor(None, lambda: message_queue.get(timeout=0.1))
+            await manager.broadcast(msg)
+        except queue.Empty:
+            pass
+        await asyncio.sleep(0.05)
+
+
+# ── 从外部（bot 线程）推送消息 ──────────────────────────
+
+def push_bot_message(data: dict) -> None:
+    """线程安全：bot 线程调用，消息进入队列"""
+    message_queue.put(data)
+
+
+# ── API 路由 ────────────────────────────────────────────
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    html_path = os.path.join(TEMPLATES, "index.html")
+    if os.path.isfile(html_path):
+        with open(html_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(f.read())
+    return HTMLResponse("<h1>index.html 未找到</h1>", status_code=404)
+
+
+@app.get("/api/image")
+async def api_image_proxy(url: str = Query(...)):
+    """代理下载 QQ 图片，绕过防盗链"""
+    try:
+        decoded = unquote(url)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(decoded, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    return Response(status_code=502)
+                data = await resp.read()
+                content_type = resp.headers.get("Content-Type", "image/png")
+                return Response(content=data, media_type=content_type)
+    except Exception:
+        return Response(status_code=502)
+
+
+@app.get("/api/readme", response_class=HTMLResponse)
+async def api_readme():
+    """返回 README.md（简单 HTML 渲染）"""
+    import re as _re
+    readme_path = os.path.join(os.path.dirname(__file__), "README.md")
+    if not os.path.isfile(readme_path):
+        return HTMLResponse("<h1>README.md 未找到</h1>", status_code=404)
+    with open(readme_path, "r", encoding="utf-8") as f:
+        text = f.read()
+    # 简单的 markdown→html 转换
+    text = _re.sub(r'### (.+)', r'<h3>\1</h3>', text)
+    text = _re.sub(r'## (.+)', r'<h2>\1</h2>', text)
+    text = _re.sub(r'# (.+)', r'<h1>\1</h1>', text)
+    text = _re.sub(r'`([^`]+)`', r'<code>\1</code>', text)
+    text = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', text)
+    text = _re.sub(r'\n- (.+)', r'<br>• \1', text)
+    text = _re.sub(r'```bash\n(.+?)```', r'<pre><code>\1</code></pre>', text, flags=_re.DOTALL)
+    text = text.replace('\n\n', '</p><p>').replace('\n', '<br>')
+    html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><title>README - NeonBotChat</title>
+<style>
+body {{ font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif; max-width:800px; margin:40px auto; padding:0 20px; background:#1a1b1e; color:#e4e5e7; line-height:1.7; }}
+h1,h2 {{ border-bottom:1px solid #3e3f44; padding-bottom:8px; }}
+code {{ background:#2c2d31; padding:2px 6px; border-radius:4px; }}
+pre {{ background:#2c2d31; padding:16px; border-radius:8px; overflow-x:auto; }}
+a {{ color:#5865f2; }}
+</style></head>
+<body><p>{text}</p></body></html>"""
+    return HTMLResponse(html)
+
+
+@app.get("/api/system-info")
+async def api_system_info():
+    """返回系统和 Bot 运行状态"""
+    import platform, time, psutil, os as _os
+
+    # CPU - 尽量取真实型号名
+    cpu_model = platform.processor() or "Unknown"
+    if cpu_model in ("Unknown", "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel", ""):
+        try:
+            import subprocess, re
+            if platform.system() == "Windows":
+                out = subprocess.check_output(
+                    'wmic cpu get name', shell=True, timeout=3
+                ).decode("utf-8", errors="ignore")
+                m = re.search(r"\n\s*(.+?)\s*\n", out)
+                if m:
+                    cpu_model = m.group(1).strip()
+            elif platform.system() == "Linux":
+                with open("/proc/cpuinfo") as f:
+                    for line in f:
+                        if "model name" in line:
+                            cpu_model = line.split(":")[1].strip()
+                            break
+        except Exception:
+            pass
+    cpu_percent = psutil.cpu_percent(interval=0.5)
+
+    # 内存
+    mem = psutil.virtual_memory()
+    mem_used = mem.used / (1024**3)
+    mem_total = mem.total / (1024**3)
+
+    # 系统运行时间
+    sys_uptime_sec = time.time() - psutil.boot_time()
+
+    # Bot 运行时间
+    from database import bot_start_time, bot_name
+    bot_uptime_sec = time.time() - bot_start_time if bot_start_time else 0
+
+    def fmt_uptime(sec):
+        days = int(sec // 86400)
+        hours = int((sec % 86400) // 3600)
+        minutes = int((sec % 3600) // 60)
+        s = int(sec % 60)
+        return f"{days}天{hours}时{minutes}分{s}秒"
+
+    return {
+        "os": f"{platform.system()} {platform.release()}",
+        "cpu_model": cpu_model,
+        "cpu_percent": round(cpu_percent, 1),
+        "mem_used": round(mem_used, 1),
+        "mem_total": round(mem_total, 1),
+        "mem_percent": round(mem.percent, 1),
+        "sys_uptime": fmt_uptime(sys_uptime_sec),
+        "bot_name": bot_name,
+        "bot_uptime": fmt_uptime(bot_uptime_sec),
+    }
+
+
+@app.get("/api/status")
+async def api_status():
+    return {
+        "status": "running",
+        "online_viewers": manager.online_count,
+    }
+
+
+@app.get("/api/conversations")
+async def api_conversations(limit: int = 50):
+    convs = await get_conversations(limit)
+    return {"conversations": convs}
+
+
+@app.post("/api/conversations")
+async def api_add_conversation(request: Request):
+    """手动添加群聊到会话列表"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+
+    group_openid: str = (body.get("group_openid") or "").strip()
+    group_name: str = (body.get("name") or "").strip()
+
+    if not group_openid:
+        return JSONResponse({"error": "group_openid 不能为空"}, status_code=400)
+
+    name = group_name or f"群聊 {group_openid[:10]}"
+    await upsert_conversation(group_openid, name=name, conv_type="group")
+
+    return {"ok": True, "id": group_openid, "name": name}
+
+
+@app.patch("/api/conversations/{conv_id}")
+async def api_rename_conversation(conv_id: str, request: Request):
+    """修改会话备注名"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+
+    new_name = (body.get("name") or "").strip()
+    if not new_name:
+        return JSONResponse({"error": "name 不能为空"}, status_code=400)
+
+    from database import rename_conversation
+    await rename_conversation(conv_id, new_name)
+    return {"ok": True, "id": conv_id, "name": new_name}
+
+
+@app.delete("/api/messages")
+async def api_clear_all_messages():
+    """清空全部聊天记录"""
+    from database import clear_all_messages
+    await clear_all_messages()
+    await manager.broadcast({"type": "clear_all"})
+    return {"ok": True}
+
+
+@app.delete("/api/messages/{conv_id}")
+async def api_clear_messages(conv_id: str):
+    """清空会话聊天记录"""
+    from database import clear_messages
+    await clear_messages(conv_id)
+    return {"ok": True}
+
+
+@app.get("/api/messages/{conv_id}")
+async def api_messages(conv_id: str, limit: int = 50, before: int = 0):
+    msgs = await get_messages(conv_id, limit=limit, before_id=before)
+    # 标记已读
+    await reset_unread(conv_id)
+    return {"messages": msgs}
+
+
+@app.post("/api/send")
+async def api_send(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+
+    conv_id: str = body.get("conv_id", "")
+    content: str = body.get("content", "")
+    msg_type: int = body.get("msg_type", 0)
+
+    if not conv_id or not content.strip():
+        return JSONResponse({"error": "conv_id 和 content 不能为空"}, status_code=400)
+
+    # 1) 标记 outgoing（防止 WebSocket 回显重复入库）
+    from database import mark_outgoing
+    mark_outgoing(conv_id, content)
+
+    # 2) 调用 QQ API 发送
+    try:
+        result = await send_group_msg(conv_id, content, msg_type=msg_type)
+    except Exception as e:
+        return JSONResponse({"error": f"发送失败: {str(e)}"}, status_code=500)
+
+    # 2) 写入本地数据库
+    from database import bot_name
+    saved = await save_message(
+        conversation_id=conv_id,
+        sender_openid="self",
+        sender_name=bot_name,
+        content=content,
+        direction="outgoing",
+        msg_id=str(result.get("id", "")),
+    )
+
+    # 3) 广播给所有 WebUI 客户端
+    await manager.broadcast({
+        "type": "new_message",
+        "data": saved,
+    })
+
+    return {"ok": True, "message": saved, "api_result": result}
+
+
+@app.post("/api/recall/{msg_db_id:int}")
+async def api_recall_message(msg_db_id: int):
+    """撤回消息（QQ 撤回 + 本地删除）"""
+    from database import get_message_by_db_id, delete_message
+
+    msg = await get_message_by_db_id(msg_db_id)
+    if not msg:
+        return JSONResponse({"error": "消息不存在"}, status_code=404)
+
+    qq_msg_id = msg.get("msg_id", "")
+    conv_id = msg["conversation_id"]
+
+    # 调 QQ API 撤回
+    if qq_msg_id:
+        try:
+            await recall_group_msg(conv_id, qq_msg_id)
+        except Exception as e:
+            return JSONResponse({"error": f"撤回失败: {str(e)}"}, status_code=500)
+
+    # 本地删除 + 广播
+    deleted = await delete_message(msg_db_id)
+    if deleted:
+        from database import bot_name
+        deleted["deleted"] = True
+        deleted["bot_name"] = bot_name  # 撤回时用
+        await manager.broadcast({"type": "recall_message", "data": deleted})
+        return {"ok": True}
+    return JSONResponse({"error": "删除失败"}, status_code=500)
+
+
+@app.post("/api/messages/batch-delete")
+async def api_batch_delete(request: Request):
+    """批量删除消息（仅本地）"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+
+    ids = body.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return JSONResponse({"error": "ids 不能为空"}, status_code=400)
+
+    from database import delete_messages_batch
+    deleted_ids = await delete_messages_batch([int(i) for i in ids])
+    await manager.broadcast({"type": "batch_delete", "data": {"ids": deleted_ids}})
+    return {"ok": True, "deleted": len(deleted_ids)}
+
+
+@app.delete("/api/message/{msg_db_id:int}")
+async def api_delete_message(msg_db_id: int):
+    """本地删除单条消息（不撤回 QQ 端）"""
+    from database import delete_message
+    deleted = await delete_message(msg_db_id)
+    if deleted:
+        deleted["deleted"] = True
+        await manager.broadcast({"type": "delete_message", "data": deleted})
+        return {"ok": True}
+    return JSONResponse({"error": "消息不存在"}, status_code=404)
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(ws: WebSocket):
+    await manager.connect(ws)
+    try:
+        while True:
+            # 保持连接，接收客户端心跳
+            data = await ws.receive_text()
+            if data == "ping":
+                await ws.send_text("pong")
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        manager.disconnect(ws)
