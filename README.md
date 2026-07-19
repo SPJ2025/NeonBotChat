@@ -88,8 +88,6 @@ NeonBotChat/
 ├── PatchActiveMsg.py    # 补丁：主动发送 / 撤回消息
 ├── PatchUserInfo.py     # 补丁：获取用户昵称 / 头像
 ├── config.yaml          # Bot 配置文件
-├── configs/
-│   └── config.yaml      # PatchActiveMsg 兼容配置
 └── templates/
     └── index.html       # WebUI 前端（零框架依赖）
 ```
