@@ -28,6 +28,8 @@ from PatchMsg import (
     is_author_bot,
     get_raw_attachments,
     get_username,
+    get_msg_type,
+    get_msg_elements,
 )
 from PatchActiveMsg import send_group_msg
 from PatchUserInfo import getUserName, replace_mentions_with_names
@@ -109,6 +111,30 @@ class MyClient(botpy.Client):
             # 提取附件（优先用原始 JSON，botpy 可能丢失 voice_wav_url 等字段）
             msg_id_for_att = getattr(message, "id", "") or ""
             raw_attachments = get_raw_attachments(msg_id_for_att)
+
+            # 引用回复消息：提取被引用消息的内容
+            quoted_sender = ""
+            quoted_content = ""
+            msg_type_raw = get_msg_type(msg_id_for_att)
+            if msg_type_raw == 103:
+                elements = get_msg_elements(msg_id_for_att)
+                if elements:
+                    quoted_content = elements[0].get("content", "")
+                    # 尝试从本地 DB 反查被引用消息的发件人
+                    if quoted_content:
+                        try:
+                            import sqlite3, os as _os
+                            qconn = sqlite3.connect(_os.path.join(_os.path.dirname(__file__), "neonbot.db"))
+                            qconn.row_factory = sqlite3.Row
+                            qrow = qconn.execute(
+                                "SELECT sender_name FROM messages WHERE conversation_id=? AND content=? ORDER BY id DESC LIMIT 1",
+                                (group_id, quoted_content)
+                            ).fetchone()
+                            qconn.close()
+                            if qrow:
+                                quoted_sender = qrow["sender_name"] or ""
+                        except Exception:
+                            pass
             if not raw_attachments:
                 # 降级：从 botpy 对象取
                 for src in ("attachments", "data", "_data"):
@@ -140,6 +166,12 @@ class MyClient(botpy.Client):
             if is_author_bot(msg_id) and is_echo(group_id, content):
                 _log.debug("[去重] 跳过 Bot 回显: %s", content[:40])
                 return
+
+            # 处理表情标记
+            import re as _re
+            has_face6 = _re.search(r'<faceType=6,[^>]*>', content)
+            content = _re.sub(r'<faceType=1,[^>]*>', '[表情符号]', content)
+            content = _re.sub(r'<faceType=6,[^>]*>', '', content)
 
             # 将 <@OpenID> 替换为 @昵称
             mentions = getattr(message, "mentions", None) or []
@@ -177,13 +209,19 @@ class MyClient(botpy.Client):
             has_image = any(a.get("content_type", "").startswith("image/") for a in norm_attachments)
             has_video = any(a.get("content_type", "").startswith("video/") for a in norm_attachments)
             has_voice = any(a.get("content_type", "") == "voice" for a in norm_attachments)
+            has_file = any(a.get("content_type", "") == "file" for a in norm_attachments)
             if not display_content.strip():
-                if has_image:
+                if has_image and has_face6:
+                    display_content = "[表情]"
+                elif has_image:
                     display_content = "[图片]"
                 elif has_video:
                     display_content = "[视频]"
                 elif has_voice:
                     display_content = "[语音]"
+                elif has_file:
+                    fn = next((a.get("filename", "") for a in norm_attachments if a.get("content_type") == "file"), "文件")
+                    display_content = f"[文件] {fn}"
                 elif norm_attachments:
                     display_content = "[富媒体文件]"
                 else:
@@ -201,6 +239,8 @@ class MyClient(botpy.Client):
                 sender_avatar=avatar_url,
                 attachments=attachments_json,
                 member_role=member_role,
+                quoted_sender=quoted_sender,
+                quoted_content=quoted_content,
             )
 
             # 补上 @信息
@@ -271,6 +311,12 @@ async def main():
     # 4) 启动 Web 服务器
     webui_port = int(config.get("webui-port", 8080))
     webui_host = "0.0.0.0" if config.get("enable-public", False) else "127.0.0.1"
+    # 密码保护
+    pwd = config.get("webui-password", "").strip()
+    if pwd:
+        import web_server
+        web_server.WEBUI_PASSWORD = pwd
+        print(f"[NeonBot] WebUI 密码保护已启用")
     print(f"[NeonBot] WebUI → http://{webui_host}:{webui_port}")
     config_obj = uvicorn.Config(
         app,

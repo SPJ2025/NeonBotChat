@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 import aiohttp
 from urllib.parse import unquote
 
@@ -26,6 +27,67 @@ message_queue: queue.Queue = queue.Queue()
 
 # ── FastAPI ─────────────────────────────────────────────
 app = FastAPI(title="NeonBotChat", version="0.1.0")
+
+# ── 密码保护中间件 ──────────────────────────────────────
+WEBUI_PASSWORD: str = ""  # 由 init.py 设置
+
+class PasswordMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        if not WEBUI_PASSWORD:
+            return await call_next(request)
+        # WebSocket 和登录接口不走密码检查
+        if request.url.path in ("/ws", "/api/login", "/api/logout"):
+            return await call_next(request)
+        # 检查 cookie
+        pwd_ok = request.cookies.get("nb_pwd") == WEBUI_PASSWORD
+        if pwd_ok:
+            resp = await call_next(request)
+            # 设置持久 cookie
+            if not request.cookies.get("nb_pwd"):
+                resp.set_cookie("nb_pwd", WEBUI_PASSWORD, max_age=86400 * 30, httponly=True)
+            return resp
+        # 密码错误 → 显示登录页
+        return HTMLResponse(LOGIN_HTML, status_code=401)
+
+app.add_middleware(PasswordMiddleware)
+
+LOGIN_HTML = """<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><title>NeonBotChat - 登录</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
+  background: #1a1b1e; color: #e4e5e7; display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; }
+.login-box { background: #1e1f23; border-radius: 12px; padding: 32px; border: 1px solid #3e3f44;
+  text-align: center; width: 360px; max-width: 90vw; }
+.login-box h2 { margin-bottom: 20px; }
+.login-box input { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #3e3f44;
+  background: #2c2d31; color: #e4e5e7; font-size: 1em; outline: none; margin-bottom: 14px; }
+.login-box input:focus { border-color: #5865f2; }
+.login-box button { width: 100%; padding: 10px; border-radius: 8px; border: none;
+  background: #5865f2; color: #fff; font-size: 1em; font-weight: 600; cursor: pointer; }
+.login-box button:hover { background: #4752c4; }
+.error { color: #ed4245; font-size: 0.85em; margin-bottom: 10px; }
+</style></head><body>
+<div class="login-box"><h2>🤖 NeonBotChat</h2>
+<p class="error" id="err"></p>
+<input type="password" id="pwd" placeholder="请输入访问密码" autofocus>
+<button onclick="login()">登 录</button></div>
+<script>
+function login() {
+  var p = document.getElementById('pwd').value;
+  if (!p) return;
+  fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pwd:p})})
+    .then(function(r) { return r.json().then(function(d) { return {ok:r.ok, data:d}; }); })
+    .then(function(r) {
+      if (r.ok) { window.location.reload(); }
+      else { document.getElementById('err').textContent = r.data.error || '密码错误'; }
+    });
+}
+document.getElementById('pwd').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') login();
+});
+</script></body></html>"""
 
 # 静态文件
 TEMPLATES = os.path.join(os.path.dirname(__file__), "templates")
@@ -88,6 +150,29 @@ def push_bot_message(data: dict) -> None:
 
 
 # ── API 路由 ────────────────────────────────────────────
+
+@app.post("/api/logout")
+async def api_logout():
+    """清除登录 cookie"""
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("nb_pwd")
+    return resp
+
+
+@app.post("/api/login")
+async def api_login(request: Request):
+    """验证密码并设置 cookie"""
+    try:
+        body = await request.json()
+        pwd = body.get("pwd", "")
+    except Exception:
+        return JSONResponse({"error": "invalid"}, status_code=400)
+    if WEBUI_PASSWORD and pwd == WEBUI_PASSWORD:
+        resp = JSONResponse({"ok": True})
+        resp.set_cookie("nb_pwd", WEBUI_PASSWORD, max_age=86400 * 30, httponly=True)
+        return resp
+    return JSONResponse({"error": "密码错误"}, status_code=401)
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
@@ -319,7 +404,7 @@ async def api_send(request: Request):
     saved = await save_message(
         conversation_id=conv_id,
         sender_openid="self",
-        sender_name=bot_name,
+        sender_name=bot_name + " 🤖",
         content=content,
         direction="outgoing",
         msg_id=str(result.get("id", "")),

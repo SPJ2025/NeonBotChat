@@ -3,5 +3,6 @@
 
 appid: "你的AppID"
 secret: "你的AppSecret"
-webui-port: 8080       # WebUI 端口，默认 8080
-enable-public: false    # true = 0.0.0.0 允许外网访问
+webui-port: 8080          # WebUI 端口，默认 8080
+enable-public: false       # true = 0.0.0.0 允许外网访问
+webui-password: ""         # 访问密码，留空则不启用密码保护

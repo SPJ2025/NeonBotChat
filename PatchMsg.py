@@ -20,6 +20,8 @@ _msg_author_bot: dict = {}
 _msg_attachments: dict = {}
 _msg_member_role: dict = {}
 _msg_username: dict = {}
+_msg_type: dict = {}
+_msg_elements: dict = {}
 
 
 def _ensure_group_message_create_parser() -> None:
@@ -45,6 +47,9 @@ def _ensure_group_message_create_parser() -> None:
             _msg_member_role[msg_id] = data.get("author", {}).get("member_role", "")
             # 存储 username（优先于第三方 API）
             _msg_username[msg_id] = data.get("author", {}).get("username", "")
+            # 存储 message_type + msg_elements（用于引用回复等）
+            _msg_type[msg_id] = data.get("message_type", 0)
+            _msg_elements[msg_id] = data.get("msg_elements", [])
 
             logger.info("[QQOfficial] 📥 收到消息 JSON:\n%s",
                          json.dumps(payload, ensure_ascii=False, indent=2))
@@ -87,6 +92,16 @@ def is_author_bot(msg_id: str) -> bool:
     return _msg_author_bot.get(msg_id, False)
 
 
+def get_msg_type(msg_id: str) -> int:
+    """获取原始 message_type"""
+    return _msg_type.get(msg_id, 0)
+
+
+def get_msg_elements(msg_id: str) -> list:
+    """获取原始 msg_elements（引用回复消息用）"""
+    return _msg_elements.get(msg_id, [])
+
+
 def get_username(msg_id: str) -> str:
     """获取原始 JSON 中的 author.username"""
     return _msg_username.get(msg_id, "")
@@ -110,4 +125,6 @@ __all__ = [
     "get_raw_attachments",
     "get_member_role",
     "get_username",
+    "get_msg_type",
+    "get_msg_elements",
 ]

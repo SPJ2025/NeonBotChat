@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NeonBotChat — 机器人接管面板</title>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
 <style>
 /* ── Reset & Base ─────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -106,12 +108,12 @@ body {
   background: transparent;
 }
 .chat-area.has-bg .msg-row.in .msg-bubble {
-  background: rgba(58, 59, 64, 0.45);
+  background: rgba(58, 59, 64, 0.65);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
 .chat-area.has-bg .msg-row.out .msg-bubble {
-  background: rgba(79, 126, 245, 0.45);
+  background: rgba(79, 126, 245, 0.65);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -161,6 +163,16 @@ body {
 .msg-row.center .msg-bubble { background: rgba(58, 59, 64, 0.7); color: var(--text-dim); font-size: 0.85em; border-radius: 8px; padding: 6px 14px; }
 .reedit-link { color: var(--accent); cursor: pointer; font-style: normal; }
 .reedit-link:hover { color: #7e8fff; }
+
+/* ── Markdown ────────────────────────────────── */
+.msg-bubble h1 { font-size: 1.3em; margin: 6px 0; font-weight: 700; }
+.msg-bubble h2 { font-size: 1.15em; margin: 5px 0; font-weight: 700; }
+.msg-bubble h3 { font-size: 1.05em; margin: 4px 0; font-weight: 700; }
+.msg-bubble h4 { font-size: 1em; margin: 3px 0; font-weight: 700; }
+.msg-bubble h5 { font-size: 0.95em; margin: 3px 0; font-weight: 700; }
+.msg-bubble h6 { font-size: 0.85em; margin: 2px 0; font-weight: 600; color: var(--text-dim); }
+.msg-bubble code { background: rgba(255,255,255,0.1); padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+.msg-bubble .katex-display { margin: 6px 0; }
 .msg-row.out { justify-content: flex-end; }
 .msg-bubble {
   max-width: 65%; padding: 10px 14px; border-radius: 12px;
@@ -188,12 +200,18 @@ body {
   vertical-align: middle;
 }
 .media-placeholder { color: var(--text-dim); font-style: italic; }
+.img-placeholder {
+  background: rgba(255,255,255,0.05); border-radius: 8px;
+  display: inline-block; margin-bottom: 6px; overflow: hidden;
+}
 .msg-image {
   max-width: 280px; max-height: 280px; border-radius: 8px;
   cursor: pointer; display: block; margin-bottom: 6px;
   object-fit: cover; transition: opacity 0.2s;
 }
+.msg-image.sticker-img { max-width: 120px; max-height: 120px; border-radius: 6px; }
 .msg-image:hover { opacity: 0.85; }
+.img-error { opacity: 0.4; cursor: default; max-width: 100px; max-height: 60px; }
 .msg-row.pending .msg-bubble { opacity: 0.7; }
 .msg-row.failed .msg-bubble { outline: 2px solid var(--danger); }
 .msg-retry {
@@ -204,7 +222,15 @@ body {
 }
 .msg-row.failed .msg-retry { display: flex; }
 .img-error { opacity: 0.4; cursor: default; max-width: 100px; max-height: 60px; }
-.msg-time { font-size: 0.72em; color: var(--text-dim); margin-top: 4px; text-align: right; }
+.msg-row { position: relative; }
+.msg-bubble { position: relative; }
+.msg-time-ext {
+  position: absolute; bottom: 0; font-size: 0.68em; color: var(--text-dim);
+  opacity: 0; transition: opacity 0.2s; white-space: nowrap; pointer-events: none;
+}
+.msg-row.in .msg-time-ext { left: calc(100% + 6px); }
+.msg-row.out .msg-time-ext { right: calc(100% + 6px); }
+.msg-row:hover .msg-time-ext { opacity: 1; transition-delay: 1s; }
 .msg-row.out .msg-time { color: rgba(255,255,255,0.6); }
 
 /* ── Input Area ───────────────────────────────── */
@@ -246,6 +272,29 @@ body {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+/* ── Reply Quote ─────────────────────────────── */
+.quote-box {
+  background: rgba(0,0,0,0.2); border-radius: 6px;
+  padding: 6px 10px; margin-bottom: 6px;
+  border-left: 3px solid var(--accent);
+  font-size: 0.85em; line-height: 1.4;
+}
+.quote-box .quote-sender { font-size: 0.82em; color: var(--accent); font-weight: 600; }
+.quote-box .quote-content { color: var(--text-dim); white-space: pre-wrap; word-break: break-word; }
+
+/* ── File Card ───────────────────────────────── */
+.file-card {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.06); border-radius: 8px;
+  padding: 10px 14px; cursor: pointer; margin-bottom: 6px;
+  transition: background 0.15s; max-width: 280px;
+}
+.file-card:hover { background: rgba(255,255,255,0.12); }
+.file-icon { font-size: 1.6em; }
+.file-info { min-width: 0; }
+.file-name { font-size: 0.85em; word-break: break-all; }
+.file-size { font-size: 0.72em; color: var(--text-dim); }
 
 /* ── Toast ───────────────────────────────────── */
 .toast-container {
@@ -294,6 +343,15 @@ body {
 .stat-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 6px; }
 .stat-bar-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.9s ease; }
 .stat-bar-mem { background: #f0a040; }
+
+/* ── Bot Avatar Upload ──────────────────────── */
+.bot-avatar-upload {
+  width: 56px; height: 56px; border-radius: 50%;
+  border: 2px dashed var(--border); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: border-color 0.2s; overflow: hidden;
+}
+.bot-avatar-upload:hover { border-color: var(--accent); }
 
 /* ── Theme Button ────────────────────────────── */
 .theme-btn {
@@ -389,12 +447,25 @@ body.light .input-area { background: rgba(232, 233, 237, 0.55); }
 body.light .settings-nav { background: rgba(232, 233, 237, 0.75); }
 body.light .chat-area.has-bg { background: transparent; }
 body.light .sidebar { background: rgba(232, 233, 237, 0.5); }
+body.light .quote-box { background: rgba(0,0,0,0.08); }
+body.light .img-placeholder { background: rgba(0,0,0,0.06); }
+body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) { color: #1a1b1e; }
 
 /* ── Responsive ───────────────────────────────── */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   .sidebar { width: 100%; min-width: unset; }
   .chat-area { display: none; }
-  .chat-area.mobile-open { display: flex; position: fixed; inset: 0; z-index: 10; }
+  .chat-area.mobile-open { display: flex; position: fixed; inset: 0; z-index: 20; }
+  .mobile-back-btn {
+    display: none; width: 32px; height: 32px; border-radius: 50%;
+    border: none; background: rgba(255,255,255,0.08); color: var(--text);
+    font-size: 1.2em; cursor: pointer; flex-shrink: 0;
+    align-items: center; justify-content: center;
+  }
+  .chat-area.mobile-open .mobile-back-btn { display: flex; }
+}
+@media (min-width: 769px) {
+  .mobile-back-btn { display: none; }
 }
 </style>
 </head>
@@ -462,6 +533,7 @@ body.light .sidebar { background: rgba(232, 233, 237, 0.5); }
     <div class="settings-nav" id="settingsNav">
       <div class="settings-nav-item active" data-tab="general">通用</div>
       <div class="settings-nav-item" data-tab="status">状态</div>
+      <div class="settings-nav-item" data-tab="account">账号与安全</div>
       <div class="settings-nav-item" data-tab="about">关于</div>
     </div>
     <!-- 右侧内容 -->
@@ -495,11 +567,31 @@ body.light .sidebar { background: rgba(232, 233, 237, 0.5); }
         <h3>📊 运行状态</h3>
         <div id="statusContent" style="font-size:0.85em; color:var(--text-dim);">加载中…</div>
       </div>
+      <!-- 账号与安全 -->
+      <div class="settings-tab" id="tab-account" style="display:none;">
+        <h3>🤖 机器人信息</h3>
+        <div style="display:flex;align-items:center;gap:14px;margin:16px 0;">
+          <div class="bot-avatar-upload" id="botAvatarUpload" title="点击上传头像">
+            <img id="botAvatarImg" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
+            <span id="botAvatarPlaceholder" style="font-size:1.8em;">🤖</span>
+          </div>
+          <div>
+            <div style="font-weight:700;font-size:1.05em;" id="accountBotName">Bot</div>
+            <div class="bio-field" id="bioDisplay" style="font-size:0.85em;color:var(--text-dim);cursor:pointer;margin-top:2px;"></div>
+            <input type="text" id="bioInput" style="display:none;font-size:0.85em;padding:4px 8px;border-radius:6px;border:1px solid var(--accent);background:var(--bg);color:var(--text);outline:none;width:100%;margin-top:2px;" placeholder="写一句简介…" maxlength="50">
+          </div>
+        </div>
+        <input type="file" id="botAvatarFile" accept="image/*" style="display:none;">
+        <hr style="border-color:var(--border);margin:16px 0;">
+        <h3>🔐 安全</h3>
+        <p style="font-size:0.85em;color:var(--text-dim);margin:12px 0;">已设置访问密码保护</p>
+        <button class="btn-cancel" id="btnLogout" style="color:var(--danger);width:100%;">🚪 退出登录</button>
+      </div>
       <!-- 关于 -->
       <div class="settings-tab" id="tab-about" style="display:none; text-align:center;">
         <h3>关于</h3>
         <p style="font-size:3em;margin:12px 0;">🤖</p>
-        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.2</p>
+        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.3</p>
         <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;">📄 阅读 README.md</a>
         <p style="color:var(--text-dim);font-size:0.85em;margin-top:12px;">Copyright © 2026 Neon. All Rights Reserved.</p>
       </div>
@@ -555,6 +647,7 @@ body.light .sidebar { background: rgba(232, 233, 237, 0.5); }
 <!-- ═══════════ Chat Area ═══════════ -->
 <main class="chat-area" id="chatArea">
   <div class="chat-header" id="chatHeader" style="display:none;">
+    <button class="mobile-back-btn" id="mobileBackBtn" title="返回">←</button>
     <div class="avatar-small" id="chatAvatar">#</div>
     <span class="header-name" id="chatName">选择会话</span>
     <button class="btn-settings" id="btnSettings" title="设置备注">⚙</button>
@@ -643,15 +736,12 @@ function connectWS() {
 let pendingContents = new Set();  // 去重用
 
 function handleIncomingMessage(msg) {
-  // 构建预览文字
-  let preview = msg.content || '';
-  if (msg.direction === 'incoming' && msg.sender_name) {
-    preview = msg.sender_name + ': ' + (msg.content || '');
-  }
   // 更新/插入会话列表
   const idx = conversations.findIndex(c => c.id === msg.conversation_id);
   if (idx >= 0) {
-    conversations[idx].last_message = preview;
+    conversations[idx].last_message = msg.content || '';
+    conversations[idx].last_sender = msg.sender_name || '';
+    conversations[idx].last_direction = msg.direction || '';
     conversations[idx].unread_count = (conversations[idx].unread_count || 0);
     if (msg.conversation_id !== currentConv) {
       conversations[idx].unread_count++;
@@ -664,7 +754,9 @@ function handleIncomingMessage(msg) {
       name: msg.conversation_id,
       type: 'group',
       avatar_url: '',
-      last_message: preview,
+      last_message: msg.content || '',
+      last_sender: msg.sender_name || '',
+      last_direction: msg.direction || '',
       unread_count: currentConv === msg.conversation_id ? 0 : 1,
     });
   }
@@ -716,8 +808,43 @@ function escHtml(s) {
   return d.innerHTML;
 }
 
+function fmtTime(ts) {
+  if (!ts) return '';
+  // "2026-07-19 16:43:39" → "07-19 16:43"
+  const m = ts.match(/^(\d{4}-)?(\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+  return m ? m[2] + ' ' + m[3] : ts.substring(0, 16);
+}
+
 function escHtmlWithBr(s) {
   return escHtml(s).replace(/\n/g, '<br>');
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  let html = text;
+  // LaTeX（katex 可能因 CDN 被墙不可用）
+  if (typeof katex !== 'undefined') {
+    html = html.replace(/\$\$([\s\S]*?)\$\$/g, (_, tex) => {
+      try { return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false }); }
+      catch { return _; }
+    });
+    html = html.replace(/\$([^\$]+?)\$/g, (_, tex) => {
+      try { return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false }); }
+      catch { return _; }
+    });
+  }
+  // 简单 Markdown（每行行首匹配）
+  html = html.replace(/^###### ?(.+)/gm, '<h6>$1</h6>');
+  html = html.replace(/^##### ?(.+)/gm, '<h5>$1</h5>');
+  html = html.replace(/^#### ?(.+)/gm, '<h4>$1</h4>');
+  html = html.replace(/^### ?(.+)/gm, '<h3>$1</h3>');
+  html = html.replace(/^## ?(.+)/gm, '<h2>$1</h2>');
+  html = html.replace(/^# ?(.+)/gm, '<h1>$1</h1>');
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
 }
 
 function roleBadge(role) {
@@ -742,6 +869,9 @@ async function selectConv(convId) {
   if (conv) {
     $chatName.textContent = conv.name || conv.id;
     $chatAvatar.textContent = (conv.name || conv.id)[0];
+    // 立即清除未读（不等 API）
+    conv.unread_count = 0;
+    renderConvList($searchInput.value);
   }
 
   // 加载历史消息
@@ -752,6 +882,11 @@ async function selectConv(convId) {
   lastMsgId = msgs.length > 0 ? msgs[msgs.length - 1].id : 0;
 
   // 滚动到底部
+  // 手机端：显示聊天区，隐藏侧栏
+  if (window.innerWidth <= 768) {
+    document.getElementById('chatArea').classList.add('mobile-open');
+    document.querySelector('.sidebar').style.display = 'none';
+  }
   scrollBottom();
   renderConvList($searchInput.value);
 }
@@ -770,8 +905,6 @@ function appendMessage(msg, scroll) {
   div.dataset.msgType = msg.msg_type || 0;
   div.addEventListener('contextmenu', onMsgContextMenu);
 
-  const time = msg.timestamp ? msg.timestamp.replace('T', ' ').substring(0, 16) : '';
-
   // 解析附件
   let attachHtml = '';
   try {
@@ -784,11 +917,26 @@ function appendMessage(msg, scroll) {
         const mediaUrl = a.content_type === 'voice' ? rawUrl : `/api/image?url=${encodeURIComponent(rawUrl)}`;
         const isVoice = a.content_type === 'voice';
         if (a.content_type && a.content_type.startsWith('image/')) {
-          attachHtml += `<img src="${escHtml(mediaUrl)}" class="msg-image" alt="${escHtml(a.filename || '图片')}" loading="lazy" onclick="viewImage('${escHtml(mediaUrl)}')" onerror="this.alt='[图片加载失败]';this.classList.add('img-error');">`;
+          const isSticker = msg.content === '[表情]';
+          const maxW = isSticker ? 120 : 280;
+          const maxH = isSticker ? 120 : 280;
+          let w = Math.min(a.width || maxW, maxW);
+          let h = a.height ? Math.round(w * a.height / (a.width || 1)) : Math.round(w * 0.75);
+          if (h > maxH) { h = maxH; w = Math.round(h * (a.width || 1) / (a.height || 1)); }
+          attachHtml += `<div class="img-placeholder" style="width:${w}px;height:${h}px;"><img src="${escHtml(mediaUrl)}" class="msg-image${isSticker ? ' sticker-img' : ''}" alt="${escHtml(a.filename || '图片')}" loading="lazy" onclick="viewImage('${escHtml(mediaUrl)}')" onerror="this.alt='[图片加载失败]';this.classList.add('img-error');" onload="this.style.opacity='1'" style="width:${w}px;height:${h}px;opacity:0;"></div>`;
         } else if (a.content_type && a.content_type.startsWith('video/')) {
           attachHtml += `<video src="${escHtml(mediaUrl)}" class="msg-video" controls preload="metadata" style="max-width:280px;max-height:280px;border-radius:8px;display:block;margin-bottom:6px;position:relative;z-index:2;pointer-events:auto;" onerror="this.style.display='none'" oncontextmenu="event.stopPropagation()"></video>`;
         } else if (isVoice) {
           attachHtml += `<audio src="${escHtml(mediaUrl)}" class="msg-audio" controls preload="auto" style="display:block;margin-bottom:6px;max-width:280px;position:relative;z-index:2;pointer-events:auto;" oncontextmenu="event.stopPropagation()"></audio>`;
+        } else if (a.content_type === 'file') {
+          const sizeStr = formatFileSize(a.size || 0);
+          attachHtml += `<div class="file-card" onclick="downloadFile('${escHtml(rawUrl)}', '${escHtml(a.filename || 'file')}')" title="点击下载">
+            <span class="file-icon">${fileIcon(a.filename || '')}</span>
+            <div class="file-info">
+              <div class="file-name">${escHtml(a.filename || '未知文件')}</div>
+              <div class="file-size">${sizeStr}</div>
+            </div>
+          </div>`;
         }
       }
     }
@@ -798,26 +946,32 @@ function appendMessage(msg, scroll) {
   if (msg.recalled) {
     div.classList.remove('in', 'out');
     div.classList.add('center');
-    div.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${escHtml(msg.content || '')}', ${msg.msg_type || 0})">重新编辑</span></div>`;
+    div.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${encodeURIComponent(msg.content || '')}', ${msg.msg_type || 0})">重新编辑</span></div>`;
     $messages.appendChild(div);
     if (scroll) scrollBottom();
     return;
   }
 
-  const placeholders = ['[富媒体文件]', '[图片]', '[视频]', '[语音]'];
+  const placeholders = ['[富媒体文件]', '[图片]', '[视频]', '[语音]', '[文件]', '[表情]'];
   const isPlaceholder = !attachHtml && placeholders.includes(msg.content);
 
   div.innerHTML = `
     <div class="msg-checkbox">✓</div>
     <div class="msg-bubble">
       ${msg.sender_name
-        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.sender_avatar ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${escHtml(msg.sender_name)}${roleBadge(msg.member_role)}</div>`
+        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.direction === 'outgoing' ? '🤖 ' : ''}${msg.sender_avatar && msg.direction !== 'outgoing' ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${escHtml(msg.sender_name.replace(/ 🤖$/, ''))}${roleBadge(msg.member_role)}${msg.direction === 'outgoing' && getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>`
         : ''}
       ${attachHtml}
-      ${msg.content && !placeholders.includes(msg.content) ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${escHtmlWithBr(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtmlWithBr(msg.content)}</div>` : '')}
-      <div class="msg-time">${time}</div>
+      ${msg.quoted_content ? `<div class="quote-box"><div class="quote-sender">${escHtml(msg.quoted_sender || '未知用户')}</div><div class="quote-content">${escHtmlWithBr(msg.quoted_content)}</div></div>` : ''}
+      ${msg.content && !placeholders.includes(msg.content) && !msg.content.startsWith('[文件]') ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${(msg.msg_type == 2) ? renderMarkdown(msg.content) : escHtmlWithBr(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtmlWithBr(msg.content)}</div>` : '')}
     </div>
   `;
+
+  // 时间放在气泡内部（绝对定位到气泡外）
+  const timeExt = document.createElement('div');
+  timeExt.className = 'msg-time-ext';
+  timeExt.textContent = fmtTime(msg.timestamp);
+  div.querySelector('.msg-bubble').appendChild(timeExt);
 
   $messages.appendChild(div);
   if (scroll) scrollBottom();
@@ -862,6 +1016,7 @@ function scrollBottom() {
 
 // ── 发送消息 ────────────────────────────────────────
 let pendingId = 0;
+let botDisplayName = '';  // Bot 自己的显示名称
 
 async function sendMessage(retryMsgId) {
   const isRetry = !!retryMsgId;
@@ -889,9 +1044,10 @@ async function sendMessage(retryMsgId) {
       id: 0,
       pending_id: tempId,
       conversation_id: currentConv,
-      sender_name: '',
+      sender_name: botDisplayName || 'Bot 🤖',
       content: content,
       direction: 'outgoing',
+      msg_type: msgType,
       timestamp: new Date().toISOString(),
       sender_avatar: '',
     };
@@ -934,12 +1090,16 @@ function appendPendingMessage(msg) {
 
   div.innerHTML = `
     <div class="msg-bubble">
-      ${msg.sender_name ? `<div class="msg-sender sender-self">${escHtml(msg.sender_name)}</div>` : ''}
-      <div>${escHtmlWithBr(msg.content)}</div>
-      <div class="msg-time">发送中…</div>
+      ${msg.sender_name ? `<div class="msg-sender sender-self">🤖 ${escHtml(msg.sender_name.replace(/ 🤖$/, ''))}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" onerror="this.style.display='none'" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;">` : ''}</div>` : ''}
+      <div>${(msg.msg_type == 2) ? renderMarkdown(msg.content) : escHtmlWithBr(msg.content)}</div>
     </div>
     <button class="msg-retry" onclick="sendMessage('${msg.pending_id}')" title="重发">!</button>
   `;
+  const timeExt = document.createElement('div');
+  timeExt.className = 'msg-time-ext';
+  timeExt.style.opacity = '1';
+  timeExt.textContent = '发送中…';
+  div.querySelector('.msg-bubble').appendChild(timeExt);
 
   div.addEventListener('contextmenu', onMsgContextMenu);
   $messages.appendChild(div);
@@ -961,14 +1121,15 @@ function replacePendingMessage(pendingId, realMsg) {
   el.dataset.msgType = realMsg.msg_type || 0;
   el.removeAttribute('data-pending-id');
 
-  const time = realMsg.timestamp ? realMsg.timestamp.replace('T', ' ').substring(0, 16) : '';
   el.innerHTML = `
     <div class="msg-bubble">
-      ${realMsg.sender_name ? `<div class="msg-sender sender-self${realMsg.member_role ? ' role-' + realMsg.member_role : ''}"><img src="${escHtml(realMsg.sender_avatar || '')}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(realMsg.sender_avatar || '')}')">${escHtml(realMsg.sender_name)}${roleBadge(realMsg.member_role)}</div>` : ''}
-      <div>${escHtmlWithBr(realMsg.content)}</div>
-      <div class="msg-time">${time}</div>
+      ${realMsg.sender_name ? `<div class="msg-sender sender-self${realMsg.member_role ? ' role-' + realMsg.member_role : ''}">🤖 ${escHtml(realMsg.sender_name.replace(/ 🤖$/, ''))}${roleBadge(realMsg.member_role)}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>` : ''}
+      <div>${(realMsg.msg_type == 2) ? renderMarkdown(realMsg.content) : escHtmlWithBr(realMsg.content)}</div>
     </div>
   `;
+  let timeExt = el.querySelector('.msg-time-ext');
+  if (!timeExt) { timeExt = document.createElement('div'); timeExt.className = 'msg-time-ext'; el.querySelector('.msg-bubble').appendChild(timeExt); }
+  timeExt.textContent = fmtTime(realMsg.timestamp);
 
   // 更新 lastMsgId
   if (realMsg.id) lastMsgId = Math.max(lastMsgId, realMsg.id);
@@ -979,7 +1140,8 @@ function markMessageFailed(pendingId) {
   if (!el) return;
   el.classList.remove('pending');
   el.classList.add('failed');
-  el.querySelector('.msg-time').textContent = '发送失败';
+  const timeEl = el.querySelector('.msg-time-ext');
+  if (timeEl) { timeEl.textContent = '发送失败'; timeEl.style.opacity = '1'; }
 }
 
 // ── 事件绑定 ────────────────────────────────────────
@@ -1078,6 +1240,10 @@ function hideRenameModal() {
 }
 
 $('#btnSettings').addEventListener('click', showRenameModal);
+$('#mobileBackBtn').addEventListener('click', () => {
+  document.getElementById('chatArea').classList.remove('mobile-open');
+  document.querySelector('.sidebar').style.display = '';
+});
 $('#btnCancelRename').addEventListener('click', hideRenameModal);
 $renameModal.addEventListener('click', (e) => {
   if (e.target === $renameModal) hideRenameModal();
@@ -1259,6 +1425,36 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// ── 文件下载 ─────────────────────────────────────────
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+}
+
+function fileIcon(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  if (['png','jpg','jpeg','gif','bmp','webp','svg','ico'].includes(ext)) return '🖼';
+  if (['mp4','avi','mov','mkv','wmv','flv','webm','ts'].includes(ext)) return '🎬';
+  if (['mp3','wav','ogg','flac','aac','m4a','amr','opus'].includes(ext)) return '🎵';
+  if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv'].includes(ext)) return '📃';
+  if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext)) return '📦';
+  return '📄';
+}
+
+function downloadFile(url, filename) {
+  if (selectMode) return;
+  // 直接下载（文件链接无需代理）
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
 // ── Toast ─────────────────────────────────────────────
 function showToast(msg) {
   const el = document.createElement('div');
@@ -1365,7 +1561,7 @@ async function refreshStatus() {
     const info = await API('/api/system-info');
     $sc.innerHTML = `
       <div style="text-align:center;margin-bottom:12px;">
-        <span style="font-size:1.1em;font-weight:700;">🤖 ${escHtml(info.bot_name)} v26.7.1</span>
+        <span style="font-size:1.1em;font-weight:700;">🤖 NeonBotChat v26.7.3</span>
       </div>
       <div class="stat-card">
         <div class="stat-label">🖥 系统</div>
@@ -1585,7 +1781,7 @@ $('#btnBatchDelete').addEventListener('click', async () => {
 function handleRecallMessage(data) {
   const el = document.querySelector(`.msg-row[data-msg-id="${data.id}"]`);
   if (el) {
-    el.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${escHtml(data.content || '')}', ${data.msg_type || 0})">重新编辑</span></div>`;
+    el.innerHTML = `<div class="msg-bubble">你撤回了一条消息 <span class="reedit-link" onclick="reeditMessageContent('${encodeURIComponent(data.content || '')}', ${data.msg_type || 0})">重新编辑</span></div>`;
     el.classList.add('center');
     el.classList.remove('in', 'out');
     el.removeEventListener('contextmenu', onMsgContextMenu);
@@ -1600,8 +1796,9 @@ function handleRecallMessage(data) {
   renderConvList($searchInput.value);
 }
 
-function reeditMessageContent(content, msgType) {
-  $msgInput.value = content || '';
+function reeditMessageContent(encoded, msgType) {
+  const content = decodeURIComponent(encoded || '');
+  $msgInput.value = content;
   $('#mdCheckbox').checked = (msgType === 2);
   updateMdToggle();
   $msgInput.focus();
@@ -1638,7 +1835,15 @@ async function handleBatchDelete(data) {
 async function refreshConversations(silent = false) {
   try {
     const data = await API('/api/conversations');
-    conversations = data.conversations || [];
+    const newList = data.conversations || [];
+    // 保留本地未读数（API 会重置为 0）
+    newList.forEach(c => {
+      const old = conversations.find(o => o.id === c.id);
+      if (old && old.unread_count > 0 && c.id !== currentConv) {
+        c.unread_count = old.unread_count;
+      }
+    });
+    conversations = newList;
     renderConvList($searchInput.value);
 
     // 如果打开了会话，增量拉取新消息
@@ -1662,6 +1867,78 @@ async function refreshConversations(silent = false) {
 let refreshTimer = null;
 refreshTimer = setInterval(() => refreshConversations(true), 5000);
 
+// ── Bot 简介 ─────────────────────────────────────────
+function getBio() { return localStorage.getItem('neonbot_bio') || ''; }
+function saveBio(text) { localStorage.setItem('neonbot_bio', text); }
+function renderBio() {
+  const bio = getBio();
+  $('#bioDisplay').textContent = bio || '点击添加简介…';
+}
+renderBio();
+
+$('#bioDisplay').addEventListener('click', () => {
+  $('#bioDisplay').style.display = 'none';
+  $('#bioInput').style.display = '';
+  $('#bioInput').value = getBio();
+  $('#bioInput').focus();
+});
+
+$('#bioInput').addEventListener('blur', () => {
+  const text = $('#bioInput').value.trim();
+  saveBio(text);
+  renderBio();
+  $('#bioDisplay').style.display = '';
+  $('#bioInput').style.display = 'none';
+});
+
+$('#bioInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('#bioInput').blur();
+});
+
+// ── Bot 头像 ─────────────────────────────────────────
+function getBotAvatar() {
+  return localStorage.getItem('neonbot_avatar') || '';
+}
+function saveBotAvatar(dataUrl) { localStorage.setItem('neonbot_avatar', dataUrl); }
+function applyBotAvatar() {
+  const av = getBotAvatar();
+  if (av) {
+    $('#botAvatarImg').src = av;
+    $('#botAvatarImg').style.display = '';
+    $('#botAvatarPlaceholder').style.display = 'none';
+  } else {
+    $('#botAvatarImg').style.display = 'none';
+    $('#botAvatarPlaceholder').style.display = '';
+  }
+}
+applyBotAvatar();
+
+$('#botAvatarUpload').addEventListener('click', () => $('#botAvatarFile').click());
+$('#botAvatarFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    saveBotAvatar(reader.result);
+    applyBotAvatar();
+  };
+  reader.readAsDataURL(file);
+});
+
+// 更新账号页的 Bot 名称
+function updateAccountBotName() {
+  const el = $('#accountBotName');
+  // 去掉末尾的 🤖，账号页不需要
+  if (el) el.textContent = (botDisplayName || 'Bot').replace(/ 🤖$/, '');
+}
+
+// ── 退出登录 ────────────────────────────────────────
+$('#btnLogout').addEventListener('click', async () => {
+  if (!confirm('确定要退出登录吗？')) return;
+  await API('/api/logout', { method: 'POST' });
+  window.location.reload();
+});
+
 // ── 深浅模式 ────────────────────────────────────────
 function setTheme(mode) {
   document.body.classList.toggle('light', mode === 'light');
@@ -1679,6 +1956,12 @@ function setTheme(mode) {
 async function init() {
   connectWS();
   await refreshConversations(false);
+  // 获取 Bot 名称
+  try {
+    const info = await API('/api/system-info');
+    botDisplayName = (info.bot_name || 'Bot') + ' 🤖';
+    updateAccountBotName();
+  } catch (e) {}
 }
 
 init();
