@@ -142,13 +142,53 @@ async def recall_group_msg(
 
 
 
-# 富媒体 file_type 枚举（QQ 官方定义）
+# 富媒体 file_type 枚举（QQ 官方定义 - 本地文件上传）
 MEDIA_TYPE = {
     "image": 1,   # 图片
-    "voice": 2,   # 语音
-    "video": 3,   # 视频
+    "voice": 3,   # 语音
+    "video": 2,   # 视频
     "file": 4,    # 文件
 }
+
+# URL 上传接口使用相同的映射
+
+
+async def upload_group_media_by_url(
+    group_openid: str,
+    media_url: str,
+    file_type: str = "image",
+) -> str:
+    """
+    通过 URL 上传富媒体到 QQ 服务器，返回 file_info
+    """
+    if file_type not in MEDIA_TYPE:
+        raise ValueError(f"file_type 必须是 {list(MEDIA_TYPE.keys())}，收到: {file_type}")
+
+    token = await _get_access_token()
+    url = f"{BASE_URL}/v2/groups/{group_openid}/files"
+
+    headers = {
+        "Authorization": f"{AUTH_TYPE} {token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "file_type": MEDIA_TYPE[file_type],
+        "url": media_url,
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, headers=headers, json=payload) as resp:
+            text = await resp.text()
+            if resp.status != 200:
+                _log.error(f"📤 URL上传失败 ({resp.status}): {text}")
+                raise RuntimeError(f"URL上传失败: {text}")
+            result = json.loads(text)
+            file_info = result.get("file_info")
+            if not file_info:
+                raise RuntimeError(f"上传成功但未返回 file_info: {result}")
+            _log.info(f"📤 URL上传成功 file_type={file_type} url={media_url[:60]}... file_info={file_info[:30]}...")
+            return file_info
 
 
 async def upload_group_media(

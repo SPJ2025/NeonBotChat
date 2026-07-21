@@ -240,6 +240,120 @@ a {{ color:#5865f2; }}
     return HTMLResponse(html)
 
 
+# ── Bot 设置存储（JSON 文件，跨设备共享）───────────────
+import json as _json_module
+SETTINGS_PATH = os.path.join(os.path.dirname(__file__), "bot_settings.json")
+
+def _load_settings() -> dict:
+    if os.path.isfile(SETTINGS_PATH):
+        with open(SETTINGS_PATH, "r", encoding="utf-8") as f:
+            return _json_module.load(f)
+    return {}
+
+def _save_settings(data: dict) -> None:
+    with open(SETTINGS_PATH, "w", encoding="utf-8") as f:
+        _json_module.dump(data, f, ensure_ascii=False, indent=2)
+
+
+@app.post("/api/send-media")
+async def api_send_media(request: Request):
+    """从图床下载图片 → 上传到 QQ → 发送富媒体消息"""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+
+    file_url = body.get("url", "")
+    conv_id = body.get("conv_id", "")
+    file_type = body.get("file_type", "image")  # "image" | "video"
+    if not file_url or not conv_id:
+        return JSONResponse({"error": "缺少 url 或 conv_id"}, status_code=400)
+
+    from botpy import logging as _blog
+    _log = _blog.get_logger("NeonBotChat")
+    _log.info(f"📤 [send-media] 图床链接: {file_url}  → 群: {conv_id}")
+
+    # 通过 URL 直接上传到 QQ（无需下载到本地）
+    try:
+        from PatchActiveMsg import upload_group_media_by_url, send_group_rich
+        file_info = await upload_group_media_by_url(conv_id, file_url, file_type=file_type)
+        result = await send_group_rich(conv_id, file_info, file_type=file_type)
+
+        # 保存到本地数据库
+        import database as _db, json as _json
+        placeholder_map = {"video": "[视频]", "voice": "[语音]", "image": "[图片]", "file": "[文件]"}
+        placeholder = placeholder_map.get(file_type, "[图片]")
+        ct_map = {"video": "video/mp4", "voice": "audio/wav", "image": "image/png", "file": "application/octet-stream"}
+        ext_map = {"video": "mp4", "voice": "wav", "image": "png", "file": "bin"}
+        attachments = _json.dumps([{"content_type": ct_map.get(file_type, "image/png"), "url": file_url, "filename": f"media.{ext_map.get(file_type, 'png')}"}], ensure_ascii=False)
+        qq_msg_id = str(result.get("id", ""))
+        saved = await _db.save_message(
+            conversation_id=conv_id,
+            sender_openid="self",
+            sender_name=_db.bot_name + " 🤖",
+            content=placeholder,
+            direction="outgoing",
+            msg_type=0,
+            msg_id=qq_msg_id,
+            attachments=attachments,
+        )
+        await manager.broadcast({"type": "new_message", "data": saved})
+        return {"ok": True, "message": saved, "qq_result": result}
+    except Exception as e:
+        return JSONResponse({"error": f"发送失败: {str(e)}"}, status_code=500)
+    except Exception as e:
+        return JSONResponse({"error": f"发送失败: {str(e)}"}, status_code=500)
+
+
+@app.post("/api/upload-file")
+async def api_upload_to_file_server(request: Request):
+    """代理上传文件到图床服务器，返回 file_id 和 url"""
+    from botpy.ext.cog_yaml import read as _read_cfg
+    _raw = _read_cfg(os.path.join(os.path.dirname(__file__), "config.yaml"))
+    fs_cfg = (_raw or {}).get("file-server", {})
+    fs_url = fs_cfg.get("public-url", "").rstrip("/") or f"http://127.0.0.1:{fs_cfg.get('port', 36337)}"
+    fs_token = fs_cfg.get("token", "")
+    fs_upload = f"{fs_url}/upload"
+
+    try:
+        form = await request.form()
+        file = form.get("file")
+        if not file:
+            return JSONResponse({"code": 400, "message": "未选择文件"}, status_code=400)
+        data = await file.read()
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            form_data = aiohttp.FormData()
+            form_data.add_field("file", data, filename=file.filename or "file", content_type=file.content_type or "application/octet-stream")
+            headers = {}
+            if fs_token:
+                headers["Authorization"] = f"Bearer {fs_token}"
+            async with session.post(fs_upload, data=form_data, headers=headers) as resp:
+                result = await resp.json()
+                return result
+    except Exception as e:
+        return JSONResponse({"code": 500, "message": f"上传失败: {str(e)}"}, status_code=500)
+
+
+@app.get("/api/settings")
+async def api_get_settings():
+    return _load_settings()
+
+
+@app.post("/api/settings")
+async def api_save_settings(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "invalid json"}, status_code=400)
+    data = _load_settings()
+    for key in ("avatar", "bio", "bg_image", "bg_opacity", "theme"):
+        if key in body:
+            data[key] = body[key]
+    _save_settings(data)
+    return {"ok": True}
+
+
 @app.get("/api/system-info")
 async def api_system_info():
     """返回系统和 Bot 运行状态"""
