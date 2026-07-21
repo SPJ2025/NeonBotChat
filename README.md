@@ -115,7 +115,6 @@ NeonBotChat/
 ├── PatchMsg.py          # 补丁：群消息解析 + 附件提取 + 角色识别
 ├── PatchActiveMsg.py    # 补丁：主动发送 / 撤回 / URL 上传
 ├── PatchUserInfo.py     # 补丁：获取用户昵称 / 头像
-├── config.example.yaml  # 配置文件示例
 ├── config.yaml          # 实际配置（含密钥，不提交 Git）
 ├── .gitignore           # Git 忽略规则
 ├── README.md            # 项目文档
@@ -124,7 +123,6 @@ NeonBotChat/
 └── file_server/         # 图床服务器（独立项目）
     ├── file_server.py
     ├── config.yaml
-    └── config.example.yaml
 ```
 
 ## 🛠 技术栈
