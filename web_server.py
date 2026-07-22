@@ -55,6 +55,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8"><title>NeonBotChat - 登录</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
+.svg-icon { vertical-align: middle; }
 body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
   background: #1a1b1e; color: #e4e5e7; display: flex; align-items: center; justify-content: center;
   min-height: 100vh; }
@@ -69,7 +70,7 @@ body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsof
 .login-box button:hover { background: #4752c4; }
 .error { color: #ed4245; font-size: 0.85em; margin-bottom: 10px; }
 </style></head><body>
-<div class="login-box"><h2>🤖 NeonBotChat</h2>
+<div class="login-box"><h2><img src="icons/bot.svg" class="svg-icon" style="width:28px;height:28px;" alt=""> NeonBotChat</h2>
 <p class="error" id="err"></p>
 <input type="password" id="pwd" placeholder="请输入访问密码" autofocus>
 <button onclick="login()">登 录</button></div>
@@ -93,7 +94,9 @@ document.getElementById('pwd').addEventListener('keydown', function(e) {
 TEMPLATES = os.path.join(os.path.dirname(__file__), "templates")
 if os.path.isdir(TEMPLATES):
     app.mount("/static", StaticFiles(directory=TEMPLATES), name="static")
-
+icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+if os.path.isdir(icons_dir):
+    app.mount("/icons", StaticFiles(directory=icons_dir), name="icons")
 
 # ── WebSocket 连接管理 ──────────────────────────────────
 
@@ -265,7 +268,8 @@ async def api_send_media(request: Request):
 
     file_url = body.get("url", "")
     conv_id = body.get("conv_id", "")
-    file_type = body.get("file_type", "image")  # "image" | "video"
+    file_type = body.get("file_type", "image")
+    file_name = body.get("file_name", "")
     if not file_url or not conv_id:
         return JSONResponse({"error": "缺少 url 或 conv_id"}, status_code=400)
 
@@ -273,11 +277,10 @@ async def api_send_media(request: Request):
     _log = _blog.get_logger("NeonBotChat")
     _log.info(f"📤 [send-media] 图床链接: {file_url}  → 群: {conv_id}")
 
-    # 通过 URL 直接上传到 QQ（无需下载到本地）
+    # 通过 URL 上传，srv_send_msg=True 自动发送（无需二次调用）
     try:
-        from PatchActiveMsg import upload_group_media_by_url, send_group_rich
-        file_info = await upload_group_media_by_url(conv_id, file_url, file_type=file_type)
-        result = await send_group_rich(conv_id, file_info, file_type=file_type)
+        from PatchActiveMsg import upload_group_media_by_url
+        result = await upload_group_media_by_url(conv_id, file_url, file_type=file_type, srv_send_msg=True, file_name=file_name)
 
         # 保存到本地数据库
         import database as _db, json as _json
@@ -285,7 +288,7 @@ async def api_send_media(request: Request):
         placeholder = placeholder_map.get(file_type, "[图片]")
         ct_map = {"video": "video/mp4", "voice": "audio/wav", "image": "image/png", "file": "application/octet-stream"}
         ext_map = {"video": "mp4", "voice": "wav", "image": "png", "file": "bin"}
-        attachments = _json.dumps([{"content_type": ct_map.get(file_type, "image/png"), "url": file_url, "filename": f"media.{ext_map.get(file_type, 'png')}"}], ensure_ascii=False)
+        attachments = _json.dumps([{"content_type": ct_map.get(file_type, "image/png"), "url": file_url, "filename": file_name or f"media.{ext_map.get(file_type, 'png')}"}], ensure_ascii=False)
         qq_msg_id = str(result.get("id", ""))
         saved = await _db.save_message(
             conversation_id=conv_id,
@@ -356,35 +359,46 @@ async def api_save_settings(request: Request):
 
 @app.get("/api/system-info")
 async def api_system_info():
-    """返回系统和 Bot 运行状态"""
-    import platform, time, psutil, os as _os
+    """返回系统和 Bot 运行状态（使用 WMI 获取准确硬件信息）"""
+    import platform, time, psutil, os as _os, math
 
-    # CPU - 尽量取真实型号名
-    cpu_model = platform.processor() or "Unknown"
-    if cpu_model in ("Unknown", "Intel64 Family 6 Model 140 Stepping 1, GenuineIntel", ""):
+    is_windows = platform.system() == "Windows"
+
+    # OS - Windows 优先从注册表获取版本名
+    os_name = f"{platform.system()} {platform.release()}"
+    if is_windows:
         try:
-            import subprocess, re
-            if platform.system() == "Windows":
-                out = subprocess.check_output(
-                    'wmic cpu get name', shell=True, timeout=3
-                ).decode("utf-8", errors="ignore")
-                m = re.search(r"\n\s*(.+?)\s*\n", out)
-                if m:
-                    cpu_model = m.group(1).strip()
-            elif platform.system() == "Linux":
-                with open("/proc/cpuinfo") as f:
-                    for line in f:
-                        if "model name" in line:
-                            cpu_model = line.split(":")[1].strip()
-                            break
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\Windows NT\CurrentVersion')
+            os_name, _ = winreg.QueryValueEx(key, 'ProductName')
+            winreg.CloseKey(key)
         except Exception:
             pass
-    cpu_percent = psutil.cpu_percent(interval=0.5)
+
+    # CPU - Windows 用 WMI，Linux 读 /proc/cpuinfo
+    cpu_model = platform.processor() or "Unknown"
+    if is_windows:
+        try:
+            import wmi
+            cpu_info = wmi.WMI().Win32_Processor()[0]
+            cpu_model = cpu_info.Name.strip()
+        except Exception:
+            pass
+    elif platform.system() == "Linux":
+        try:
+            with open("/proc/cpuinfo") as f:
+                for line in f:
+                    if "model name" in line:
+                        cpu_model = line.split(":")[1].strip()
+                        break
+        except Exception:
+            pass
+    cpu_percent = psutil.cpu_percent(interval=0)  # 非阻塞，返回上次调用以来的值
 
     # 内存
     mem = psutil.virtual_memory()
     mem_used = mem.used / (1024**3)
-    mem_total = mem.total / (1024**3)
+    mem_total = math.ceil(mem.total / (1024**3))
 
     # 系统运行时间
     sys_uptime_sec = time.time() - psutil.boot_time()
@@ -401,7 +415,7 @@ async def api_system_info():
         return f"{days}天{hours}时{minutes}分{s}秒"
 
     return {
-        "os": f"{platform.system()} {platform.release()}",
+        "os": os_name,
         "cpu_model": cpu_model,
         "cpu_percent": round(cpu_percent, 1),
         "mem_used": round(mem_used, 1),

@@ -3,10 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NeonBotChat — 机器人接管面板</title>
+<title>NeonBotChat 聊天</title>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16/dist/katex.min.css">
 <style>
+/* ── SVG Icons ───────────────────────────────── */
+.svg-icon { vertical-align: middle; opacity: 0.85; flex-shrink: 0; filter: invert(1); }
+button .svg-icon, .conv-item .svg-icon { opacity: 1; }
+body.light .svg-icon { filter: invert(0); }
+.ctx-item.danger .svg-icon { filter: none; }
+img.svg-icon[src*="delete.svg"], img.svg-icon[src*="chat.svg"], img.svg-icon[src*="logout.svg"] { filter: none !important; }
+
 /* ── Reset & Base ─────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -318,10 +325,10 @@ body {
 
 /* ── File Card ───────────────────────────────── */
 .file-card {
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(255,255,255,0.06); border-radius: 8px;
-  padding: 10px 14px; cursor: pointer; margin-bottom: 6px;
-  transition: background 0.15s; max-width: 280px;
+  display: flex; align-items: center; gap: 12px;
+  background: rgba(255,255,255,0.06); border-radius: 10px;
+  padding: 14px 18px; cursor: pointer; margin-bottom: 6px;
+  transition: background 0.15s; max-width: 320px;
 }
 .file-card:hover { background: rgba(255,255,255,0.12); }
 .file-icon { font-size: 1.6em; }
@@ -445,6 +452,10 @@ body {
 .context-menu .ctx-item:hover { background: var(--accent); }
 .context-menu .ctx-item.danger { color: var(--danger); }
 .context-menu .ctx-item.danger:hover { background: var(--danger); color: #fff; }
+.ctx-icon-hover { display: none; }
+.ctx-item.danger:hover .ctx-icon { display: none; }
+.ctx-item.danger:hover .ctx-icon-hover { display: inline; }
+.ctx-sep { height: 1px; background: var(--border); margin: 4px 0; }
 
 /* ── Modal ────────────────────────────────────── */
 .modal-overlay {
@@ -453,9 +464,11 @@ body {
   z-index: 100; opacity: 0; pointer-events: none;
   transition: opacity 0.2s;
 }
+#confirmDialog { z-index: 200; }
 .modal-overlay.show { opacity: 1; pointer-events: auto; }
 .modal-box {
-  background: var(--sidebar); border-radius: 12px;
+  background: rgba(30, 31, 35, 0.85); border-radius: 12px;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
   padding: 24px; width: 380px; max-width: 90vw;
   border: 1px solid var(--border);
 }
@@ -500,6 +513,17 @@ body.light .owner-badge { background: rgba(180, 110, 20, 0.18); color: #a06018; 
 body.light .role-群主 { color: #a06018; }
 body.light .role-管理员 { color: #2a48b0; }
 body.light .quote-box { background: rgba(0,0,0,0.08); }
+body.light .file-card { background: rgba(0,0,0,0.06); }
+body.light .file-card:hover { background: rgba(0,0,0,0.12); }
+body.light .glass-btn { background: rgba(0,0,0,0.06); color: #1a1b1e; }
+body.light .glass-btn:hover { background: rgba(0,0,0,0.12); }
+body.light .glass-btn.active { background: var(--accent); color: #fff; }
+body.light .glass-btn.danger { color: #c0392b; }
+body.light .glass-btn.danger:hover { background: rgba(192,57,43,0.12); }
+body.light .theme-btn { background: rgba(0,0,0,0.06); color: #1a1b1e; }
+body.light .theme-btn:hover { background: rgba(0,0,0,0.12); }
+body.light .theme-btn.active { background: var(--accent); color: #fff; }
+body.light .modal-box { background: rgba(240, 241, 244, 0.85); }
 body.light .img-placeholder { background: rgba(0,0,0,0.06); }
 body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) { color: #1a1b1e; }
 
@@ -527,26 +551,26 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
 <!-- ═══════════ Sidebar ═══════════ -->
 <aside class="sidebar">
   <div class="sidebar-header">
-    <span class="logo">🤖 NeonBot</span>
+    <span class="logo"><img src="icons/bot.svg" class="svg-icon" style="width:22px;height:22px;" alt=""> NeonBot</span>
     <span class="status" id="botStatus">● 在线</span>
-    <button class="btn-add" id="btnAddConv" title="添加群聊">＋</button>
+    <button class="btn-add" id="btnAddConv" title="添加群聊"><img src="icons/add_group.svg" class="svg-icon" style="width:18px;height:18px;" alt=""></button>
   </div>
   <div class="search-box">
-    <input type="text" id="searchInput" placeholder="🔍 搜索会话…" autocomplete="off">
+    <input type="text" id="searchInput" placeholder="搜索会话…" autocomplete="off">
   </div>
   <div class="conv-list" id="convList">
     <div style="padding:20px; color:var(--text-dim); text-align:center;">加载中…</div>
   </div>
   <div class="sidebar-footer" style="display:flex;">
-    <span id="favBtn" style="flex:1;text-align:center;cursor:pointer;" title="收藏列表">⭐ 收藏</span>
-    <span id="aboutBtn" style="flex:1;text-align:center;cursor:pointer;" title="设置">⚙ 设置</span>
+    <span id="favBtn" style="flex:1;text-align:center;cursor:pointer;" title="收藏列表"><img src="icons/favourite.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 收藏</span>
+    <span id="aboutBtn" style="flex:1;text-align:center;cursor:pointer;" title="设置"><img src="icons/settings.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 设置</span>
   </div>
 </aside>
 
 <!-- ═══════════ Add Conversation Modal ═══════════ -->
 <div class="modal-overlay" id="addConvModal">
   <div class="modal-box">
-    <h3>➕ 添加群聊</h3>
+    <h3><img src="icons/add_group.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 添加群聊</h3>
     <label for="newConvId">群 OpenID</label>
     <input type="text" id="newConvId" placeholder="粘贴群 group_openid…" autocomplete="off">
     <label for="newConvName">备注名（可选）</label>
@@ -561,7 +585,7 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
 <!-- ═══════════ Rename Conversation Modal ═══════════ -->
 <div class="modal-overlay" id="renameConvModal">
   <div class="modal-box">
-    <h3>⚙ 群聊设置</h3>
+    <h3><img src="icons/settings.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 群聊设置</h3>
     <label for="renameConvInput">备注名</label>
     <div style="display:flex; gap:8px;">
       <input type="text" id="renameConvInput" placeholder="输入新备注名…" autocomplete="off" style="flex:1; margin-bottom:0;">
@@ -570,10 +594,22 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
     <hr style="border-color:var(--border); margin:16px 0;">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <span style="font-size:0.9em; color:var(--text-dim);">清空聊天记录</span>
-      <button class="glass-btn danger" id="btnClearHistory" style="color:var(--danger);">🗑 清空</button>
+      <button class="glass-btn danger" id="btnClearHistory" style="color:var(--danger);"><img src="icons/delete.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 清空</button>
     </div>
     <div class="modal-actions" style="margin-top:16px;">
       <button class="glass-btn" id="btnCancelRename">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ Confirm Dialog ═══════════ -->
+<div class="modal-overlay" id="confirmDialog">
+  <div class="modal-box" style="text-align:center;width:360px;">
+    <div id="confirmIcon" style="font-size:2em;margin-bottom:8px;"></div>
+    <p id="confirmMsg" style="margin-bottom:16px;font-size:0.95em;"></p>
+    <div class="modal-actions" style="justify-content:center;">
+      <button class="glass-btn" id="confirmCancel">取消</button>
+      <button class="glass-btn danger" id="confirmOk">确认</button>
     </div>
   </div>
 </div>
@@ -583,24 +619,24 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
   <div class="modal-box" style="display:flex; gap:0; padding:0; width:560px; max-width:95vw; overflow:hidden;">
     <!-- 左侧导航 -->
     <div class="settings-nav" id="settingsNav">
-      <div class="settings-nav-item active" data-tab="general">通用</div>
-      <div class="settings-nav-item" data-tab="status">状态</div>
-      <div class="settings-nav-item" data-tab="account">账号与安全</div>
-      <div class="settings-nav-item" data-tab="about">关于</div>
+      <div class="settings-nav-item active" data-tab="general"><img src="icons/settings.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 通用</div>
+      <div class="settings-nav-item" data-tab="status"><img src="icons/system_status.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 状态</div>
+      <div class="settings-nav-item" data-tab="account"><img src="icons/security.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 账号与安全</div>
+      <div class="settings-nav-item" data-tab="about"><img src="icons/bot.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 关于</div>
     </div>
     <!-- 右侧内容 -->
     <div style="flex:1; padding:24px; overflow-y:auto; max-height:70vh;">
       <!-- 通用 -->
       <div class="settings-tab" id="tab-general">
-        <h3 style="margin-bottom:12px;">🎨 外观</h3>
+        <h3 style="margin-bottom:12px;"><img src="icons/appearance.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 外观</h3>
         <div style="display:flex; gap:8px; margin-bottom:16px;">
-          <button class="theme-btn" id="themeLight" onclick="setTheme('light')">☀ 浅色</button>
-          <button class="theme-btn active" id="themeDark" onclick="setTheme('dark')">🌙 深色</button>
+          <button class="theme-btn" id="themeLight" onclick="setTheme('light')"><img src="icons/light_mode.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 浅色</button>
+          <button class="theme-btn active" id="themeDark" onclick="setTheme('dark')"><img src="icons/dark_mode.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 深色</button>
         </div>
-        <h3 style="margin-bottom:16px;">🖼 聊天背景</h3>
+        <h3 style="margin-bottom:16px;"><img src="icons/image.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 聊天背景</h3>
         <div style="display:flex; gap:8px; align-items:center; margin-bottom:12px;">
           <input type="file" id="bgFileInput" accept="image/*" style="display:none;">
-          <button class="glass-btn" id="btnPickBg">📁 选择图片</button>
+          <button class="glass-btn" id="btnPickBg"><img src="icons/browse.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 选择图片</button>
           <button class="glass-btn danger" id="btnClearBg" style="color:var(--danger);">清除背景</button>
         </div>
         <label style="display:flex; align-items:center; gap:8px;">
@@ -611,17 +647,17 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
         <hr style="border-color:var(--border); margin:16px 0;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:0.9em; color:var(--text-dim);">清空全部聊天记录</span>
-          <button class="glass-btn danger" id="btnClearAllHistory" style="color:var(--danger);">🗑 清空全部</button>
+          <button class="glass-btn danger" id="btnClearAllHistory" style="color:var(--danger);"><img src="icons/delete.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 清空全部</button>
         </div>
       </div>
       <!-- 状态 -->
       <div class="settings-tab" id="tab-status" style="display:none;">
-        <h3>📊 运行状态</h3>
+        <h3><img src="icons/system_status.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 运行状态</h3>
         <div id="statusContent" style="font-size:0.85em; color:var(--text-dim);">加载中…</div>
       </div>
       <!-- 账号与安全 -->
       <div class="settings-tab" id="tab-account" style="display:none;">
-        <h3>🤖 机器人信息</h3>
+        <h3><img src="icons/bot.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 机器人信息</h3>
         <div style="display:flex;align-items:center;gap:14px;margin:16px 0;">
           <div class="bot-avatar-upload" id="botAvatarUpload" title="点击上传头像">
             <img id="botAvatarImg" style="display:none;width:100%;height:100%;border-radius:50%;object-fit:cover;">
@@ -635,16 +671,16 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
         </div>
         <input type="file" id="botAvatarFile" accept="image/*" style="display:none;">
         <hr style="border-color:var(--border);margin:16px 0;">
-        <h3>🔐 安全</h3>
+        <h3><img src="icons/security.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 安全</h3>
         <p style="font-size:0.85em;color:var(--text-dim);margin:12px 0;">已设置访问密码保护</p>
-        <button class="glass-btn danger" id="btnLogout" style="color:var(--danger);width:100%;">🚪 退出登录</button>
+        <button class="glass-btn danger" id="btnLogout" style="color:var(--danger);width:100%;"><img src="icons/logout.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 退出登录</button>
       </div>
       <!-- 关于 -->
       <div class="settings-tab" id="tab-about" style="display:none; text-align:center;">
         <h3>关于</h3>
-        <p style="font-size:3em;margin:12px 0;">🤖</p>
-        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.4</p>
-        <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;">📄 阅读 README.md</a>
+        <p style="margin:12px 0;"><img src="icons/bot.svg" class="svg-icon" style="width:48px;height:48px;" alt=""></p>
+        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.5</p>
+        <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;"><img src="icons/documents.svg" class="svg-icon" style="width:14px;height:14px;" alt=""> 阅读 README.md</a>
         <p style="color:var(--text-dim);font-size:0.85em;margin-top:12px;">Copyright © 2026 Neon. All Rights Reserved.</p>
       </div>
     </div>
@@ -653,25 +689,26 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
 
 <!-- ═══════════ Context Menu ═══════════ -->
 <div class="context-menu" id="ctxMenu">
-  <div class="ctx-item" id="ctxCopy">📋 复制</div>
-  <div class="ctx-item" id="ctxForward">↗ 转发</div>
-  <div class="ctx-item" id="ctxFavorite">⭐ 收藏</div>
-  <div class="ctx-item" id="ctxRecall">↩ 撤回消息</div>
-  <div class="ctx-item" id="ctxMultiSelect">☑ 多选消息</div>
-  <div class="ctx-item danger" id="ctxDelete">🗑 删除（仅本地）</div>
+  <div class="ctx-item" id="ctxCopy"><img src="icons/copy.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 复制</div>
+  <div class="ctx-item" id="ctxForward"><img src="icons/share.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 转发</div>
+  <div class="ctx-item" id="ctxFavorite"><img src="icons/favourite.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 收藏</div>
+  <div class="ctx-item" id="ctxMultiSelect"><img src="icons/multiple_choice.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 多选</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="ctxRecall"><img src="icons/recall.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 撤回</div>
+  <div class="ctx-item danger" id="ctxDelete"><img src="icons/delete.svg" class="svg-icon ctx-icon" style="width:16px;height:16px;" alt=""><img src="icons/delete_black.svg" class="svg-icon ctx-icon-hover" style="width:16px;height:16px;" alt=""> 删除</div>
 </div>
 
 <!-- ═══════════ Batch Action Bar ═══════════ -->
 <div class="batch-bar" id="batchBar">
   <span id="batchCount">已选 0 条</span>
-  <button class="btn-cancel" id="btnCancelSelect">取消</button>
-  <button style="background:var(--danger);color:#fff;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" id="btnBatchDelete">🗑 批量删除</button>
+  <button class="glass-btn" id="btnCancelSelect">取消</button>
+  <button style="background:var(--danger);color:#fff;padding:6px 14px;border:none;border-radius:6px;cursor:pointer;font-weight:600;" id="btnBatchDelete"><img src="icons/delete.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 批量删除</button>
 </div>
 
 <!-- ═══════════ Favorites Modal ═══════════ -->
 <div class="modal-overlay" id="favModal">
   <div class="modal-box" style="max-height:70vh;overflow-y:auto;width:520px;max-width:95vw;">
-    <h3>⭐ 收藏列表</h3>
+    <h3><img src="icons/favourite.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 收藏列表</h3>
     <div id="favList" style="max-height:50vh;overflow-y:auto;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="glass-btn" id="btnCloseFav">关闭</button>
@@ -683,7 +720,7 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
 <!-- ═══════════ Forward Modal ═══════════ -->
 <div class="modal-overlay" id="forwardModal">
   <div class="modal-box">
-    <h3>↗ 转发消息</h3>
+    <h3><img src="icons/share.svg" class="svg-icon" style="width:18px;height:18px;" alt=""> 转发消息</h3>
     <label>目标群聊</label>
     <select id="forwardTarget" style="width:100%;padding:8px;border-radius:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);margin-bottom:12px;"></select>
     <div class="modal-actions">
@@ -702,26 +739,29 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
     <button class="mobile-back-btn" id="mobileBackBtn" title="返回">←</button>
     <div class="avatar-small" id="chatAvatar">#</div>
     <span class="header-name" id="chatName">选择会话</span>
-    <button class="btn-settings" id="btnSettings" title="设置备注">⚙</button>
+    <button class="btn-settings" id="btnSettings" title="设置备注"><img src="icons/settings.svg" class="svg-icon" style="width:16px;height:16px;" alt=""></button>
   </div>
   <div class="chat-empty" id="chatEmpty">
-    <div class="icon">💬</div>
-    <div>选择一个会话开始接管</div>
+    <div class="icon"><img src="icons/chat.svg" class="svg-icon" style="width:48px;height:48px;" alt=""></div>
+    <div>选择一个会话</div>
   </div>
   <div class="messages" id="messages" style="display:none;"></div>
   <div class="input-area" id="inputArea" style="display:none;">
     <textarea id="msgInput" rows="1" placeholder="输入消息… (Enter 发送, Shift+Enter 换行)" disabled></textarea>
-    <label class="md-toggle" id="mdToggle" title="发送为 Markdown"><input type="checkbox" id="mdCheckbox"> MD</label>
+    <label class="md-toggle" id="mdToggle" title="发送为 Markdown" style="display:none;"><input type="checkbox" id="mdCheckbox"> MD</label>
     <button class="md-toggle" id="richMediaBtn" title="发送富媒体">＋</button>
     <button id="sendBtn" disabled>发送</button>
   </div>
 
 <!-- ═══════════ Rich Media Menu ═══════════ -->
 <div class="context-menu" id="richMenu" style="display:none;">
-  <div class="ctx-item" style="color:var(--danger);font-size:0.78em;cursor:default;pointer-events:none;">⚠ 需先配置图床服务器</div>
-  <div class="ctx-item" id="richImage" onclick="pickRichMedia('image')">🖼  图片</div>
-  <div class="ctx-item" id="richVideo" onclick="pickRichMedia('video')">🎬 视频</div>
-  <div class="ctx-item" id="richVoice" onclick="pickRichMedia('voice')">🎵 语音</div>
+  <div class="ctx-item" id="richImage" onclick="pickRichMedia('image')"><img src="icons/image.svg" class="svg-icon" style="width:16px;height:16px;" alt="">  图片</div>
+  <div class="ctx-item" id="richVideo" onclick="pickRichMedia('video')"><img src="icons/video.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 视频</div>
+  <div class="ctx-item" id="richVoice" onclick="pickRichMedia('voice')"><img src="icons/audio.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 语音</div>
+  <div class="ctx-item" id="richFileSend" onclick="pickRichMedia('file')"><img src="icons/documents.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 文件</div>
+  <div class="ctx-item" id="richMD" onclick="toggleMD()"><img src="icons/markdown.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> Markdown<span style="float:right;color:var(--text-dim);font-size:0.8em;" id="mdMenuStatus"></span></div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item" id="richExpand" onclick="toggleExpandInput()"><img src="icons/keyboard.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 展开输入<span style="float:right;color:var(--text-dim);font-size:0.8em;" id="expandMenuStatus"></span></div>
 </div>
 <input type="file" id="richFileInput" accept="image/*" style="display:none;">
 </main>
@@ -864,6 +904,14 @@ function renderConvList(filter = '') {
     `).join('');
 }
 
+function icon(name, sz = 18) {
+  return `<img src="icons/${name}.svg" class="svg-icon" style="width:${sz}px;height:${sz}px;" alt="">`;
+}
+function fmtBotMarker(name) {
+  // 将名字中的 🤖 替换为 bot.svg 图标
+  if (!name) return name;
+  return name.replace(/🤖/g, '<img src="icons/bot.svg" class="svg-icon" style="width:14px;height:14px;margin:0 2px;" alt="">');
+}
 function escHtml(s) {
   const d = document.createElement('div');
   d.textContent = s || '';
@@ -1009,7 +1057,7 @@ function appendMessage(msg, scroll) {
         } else if (a.content_type === 'file') {
           const sizeStr = formatFileSize(a.size || 0);
           attachHtml += `<div class="file-card" onclick="downloadFile('${escHtml(rawUrl)}', '${escHtml(a.filename || 'file')}', this)" title="点击下载">
-            <span class="file-icon">${fileIcon(a.filename || '')}</span>
+            <span class="file-icon"><img src="icons/${fileIconName(a.filename || '')}.svg" class="svg-icon" style="width:20px;height:20px;" alt=""></span>
             <div class="file-info">
               <div class="file-name">${escHtml(a.filename || '未知文件')}</div>
               <div class="file-size">${sizeStr}</div>
@@ -1038,7 +1086,7 @@ function appendMessage(msg, scroll) {
     <div class="msg-checkbox">✓</div>
     <div class="msg-bubble">
       ${msg.sender_name
-        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.direction === 'outgoing' ? '🤖 ' : ''}${msg.sender_avatar && msg.direction !== 'outgoing' ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${escHtml(msg.sender_name.replace(/ 🤖$/, ''))}${roleBadge(msg.member_role)}${msg.direction === 'outgoing' && getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>`
+        ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.direction === 'outgoing' ? icon('bot', 14) + ' ' : ''}${msg.sender_avatar && msg.direction !== 'outgoing' ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${msg.direction === 'outgoing' ? escHtml(msg.sender_name.replace(/ 🤖$/, '')) : fmtBotMarker(escHtml(msg.sender_name))}${roleBadge(msg.member_role)}${msg.direction === 'outgoing' && getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>`
         : ''}
       ${attachHtml}
       ${msg.quoted_content ? `<div class="quote-box"><div class="quote-sender">${escHtml(msg.quoted_sender || '未知用户')}</div><div class="quote-content">${escHtmlWithBr(msg.quoted_content)}</div></div>` : ''}
@@ -1123,7 +1171,7 @@ async function sendMessage(retryMsgId) {
       id: 0,
       pending_id: tempId,
       conversation_id: currentConv,
-      sender_name: botDisplayName || 'Bot 🤖',
+      sender_name: botDisplayName || 'Bot',
       content: content,
       direction: 'outgoing',
       msg_type: msgType,
@@ -1169,7 +1217,7 @@ function appendPendingMessage(msg) {
 
   div.innerHTML = `
     <div class="msg-bubble">
-      ${msg.sender_name ? `<div class="msg-sender sender-self">🤖 ${escHtml(msg.sender_name.replace(/ 🤖$/, ''))}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" onerror="this.style.display='none'" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;">` : ''}</div>` : ''}
+      ${msg.sender_name ? `<div class="msg-sender sender-self">${icon('bot', 14)} ${escHtml(msg.sender_name.replace(/ 🤖$/, ''))}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" onerror="this.style.display='none'" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;">` : ''}</div>` : ''}
       <div>${(msg.msg_type == 2) ? renderMarkdown(msg.content) : escHtmlWithBr(msg.content)}</div>
     </div>
     <button class="msg-retry" onclick="sendMessage('${msg.pending_id}')" title="重发">!</button>
@@ -1202,7 +1250,7 @@ function replacePendingMessage(pendingId, realMsg) {
 
   el.innerHTML = `
     <div class="msg-bubble">
-      ${realMsg.sender_name ? `<div class="msg-sender sender-self${realMsg.member_role ? ' role-' + realMsg.member_role : ''}">🤖 ${escHtml(realMsg.sender_name.replace(/ 🤖$/, ''))}${roleBadge(realMsg.member_role)}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>` : ''}
+      ${realMsg.sender_name ? `<div class="msg-sender sender-self${realMsg.member_role ? ' role-' + realMsg.member_role : ''}">${icon('bot', 14)} ${escHtml(realMsg.sender_name.replace(/ 🤖$/, ''))}${roleBadge(realMsg.member_role)}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>` : ''}
       <div>${(realMsg.msg_type == 2) ? renderMarkdown(realMsg.content) : escHtmlWithBr(realMsg.content)}</div>
     </div>
   `;
@@ -1243,10 +1291,36 @@ function updateMdToggle() {
   const active = $('#mdCheckbox').checked;
   if (active) $('#mdToggle').classList.add('active');
   else $('#mdToggle').classList.remove('active');
+  updateMdMenuStatus();
 }
 $('#mdCheckbox').addEventListener('change', updateMdToggle);
 
 // ── 富媒体上传 ────────────────────────────────────────
+function toggleMD() {
+  const cb = $('#mdCheckbox');
+  cb.checked = !cb.checked;
+  updateMdToggle();
+  $('#richMenu').style.display = 'none';
+}
+function updateMdMenuStatus() {
+  $('#mdMenuStatus').textContent = $('#mdCheckbox').checked ? '✓' : '';
+}
+function toggleExpandInput() {
+  $('#richMenu').style.display = 'none';
+  const ta = $('#msgInput');
+  if (ta.style.maxHeight === 'none') {
+    ta.style.maxHeight = '120px';
+    ta.style.height = 'auto';
+  } else {
+    ta.style.maxHeight = 'none';
+    ta.style.height = '200px';
+  }
+  ta.focus();
+  updateExpandMenuStatus();
+}
+function updateExpandMenuStatus() {
+  $('#expandMenuStatus').textContent = $('#msgInput').style.maxHeight === 'none' ? '✓' : '';
+}
 $('#richMediaBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   const menu = $('#richMenu');
@@ -1264,12 +1338,16 @@ document.addEventListener('click', (e) => {
 });
 
 let richMediaType = 'image';
-function pickRichMedia(type) {
+async function pickRichMedia(type) {
   $('#richMenu').style.display = 'none';
+  if (type === 'file') {
+    if (!(await showConfirm('当前 QQ API 不稳定，文件发送几乎 100% 失败，你确认要继续发送吗？', 'query', false))) return;
+  }
   richMediaType = type;
   if (type === 'image') $('#richFileInput').accept = 'image/*';
   else if (type === 'video') $('#richFileInput').accept = 'video/*';
   else if (type === 'voice') $('#richFileInput').accept = 'audio/*';
+  else if (type === 'file') $('#richFileInput').accept = '*/*';
   $('#richFileInput').click();
 }
 
@@ -1279,7 +1357,7 @@ $('#richFileInput').addEventListener('change', async function() {
   if (!currentConv) { showToast('⚠ 请先选择一个群聊'); return; }
 
   const mediaType = richMediaType;
-  const placeholderMap = {image:'[图片]', video:'[视频]', voice:'[语音]'};
+  const placeholderMap = {image:'[图片]', video:'[视频]', voice:'[语音]', file:'[文件]'};
   const placeholder = placeholderMap[mediaType] || '[图片]';
   this.value = '';
   pendingContents.add(placeholder);
@@ -1290,11 +1368,13 @@ $('#richFileInput').addEventListener('change', async function() {
   pendingDiv.dataset.pendingId = tempId;
   pendingDiv.innerHTML = `
     <div class="msg-bubble">
-      ${botDisplayName ? `<div class="msg-sender sender-self">🤖 ${escHtml(botDisplayName.replace(/ 🤖$/, ''))}</div>` : ''}
+      ${botDisplayName ? `<div class="msg-sender sender-self">${icon('bot', 14)} ${escHtml(botDisplayName.replace(/ 🤖$/, ''))}${getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>` : ''}
       <div class="img-placeholder">${mediaType === 'video'
         ? `<video src="${blobUrl}" class="msg-video" controls preload="metadata" style="max-width:280px;max-height:280px;border-radius:8px;opacity:0.7;position:relative;z-index:2;pointer-events:auto;" oncontextmenu="event.stopPropagation()"></video>`
         : mediaType === 'voice'
         ? `<audio src="${blobUrl}" class="msg-audio" controls preload="auto" style="max-width:280px;opacity:0.7;position:relative;z-index:2;pointer-events:auto;" oncontextmenu="event.stopPropagation()"></audio>`
+        : mediaType === 'file'
+        ? `<div class="file-card" style="opacity:0.7;"><span class="file-icon"><img src="icons/${fileIconName(file.name)}.svg" class="svg-icon" style="width:20px;height:20px;" alt=""></span><div class="file-info"><div class="file-name">${escHtml(file.name)}</div><div class="file-size">${formatFileSize(file.size)}</div></div></div>`
         : `<img src="${blobUrl}" class="msg-image" style="max-width:280px;max-height:280px;object-fit:cover;border-radius:8px;opacity:0.7;cursor:pointer;" onclick="event.stopPropagation();viewImage('${blobUrl}')">`}</div>
       <div style="font-size:0.75em;color:var(--text-dim);">上传中…</div>
     </div>
@@ -1311,39 +1391,45 @@ $('#richFileInput').addEventListener('change', async function() {
     const upR = await fetch('/api/upload-file', { method: 'POST', body: form }).then(r => r.json());
     if (upR.code !== 200) {
       pendingContents.delete(placeholder);
-      const previewEl = pendingDiv.querySelector('img, video');
+      const previewEl = pendingDiv.querySelector('img, video, audio');
       if (previewEl) previewEl.style.opacity = '1';
-      pendingDiv.querySelector('div:last-child').textContent = '图床上传失败';
+      pendingDiv.querySelector('.msg-bubble > div:last-of-type').textContent = '图床上传失败';
       pendingDiv.classList.add('failed');
       pendingDiv.querySelector('.msg-retry').style.display = '';
       return;
     }
 
     const fileUrl = upR.url || `http://spj2025.top:36337/get/${upR.file_id}`;
-    pendingDiv.querySelector('div:last-child').textContent = '发送中…';
+    pendingDiv.querySelector('.msg-bubble > div:last-of-type').textContent = '发送中…';
 
     // 第二步：通过 QQ API 发送
     const sendR = await API('/api/send-media', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conv_id: currentConv, url: fileUrl, file_type: mediaType }),
+      body: JSON.stringify({ conv_id: currentConv, url: fileUrl, file_type: mediaType, file_name: file.name }),
     });
     if (sendR.error || !sendR.ok) {
       pendingContents.delete(placeholder);
-      const previewEl2 = pendingDiv.querySelector('img, video');
+      const previewEl2 = pendingDiv.querySelector('img, video, audio');
       if (previewEl2) previewEl2.style.opacity = '1';
-      pendingDiv.querySelector('div:last-child').textContent = sendR.error || '发送失败';
+      pendingDiv.querySelector('.msg-bubble > div:last-of-type').textContent = sendR.error || '发送失败';
       pendingDiv.classList.add('failed');
       pendingDiv.querySelector('.msg-retry').style.display = '';
       return;
     }
 
-    // 成功
-    const previewEl3 = pendingDiv.querySelector('img, video');
+    // 成功：清除半透明 + pending 状态
+    const previewEl3 = pendingDiv.querySelector('img, video, audio');
     if (previewEl3) previewEl3.style.opacity = '1';
-    const statusDiv = pendingDiv.querySelector('div:last-child');
+    // 文件卡片
+    const fileCard = pendingDiv.querySelector('.file-card');
+    if (fileCard) fileCard.style.opacity = '1';
+    const statusDiv = pendingDiv.querySelector('.msg-bubble > div:last-of-type');
     if (statusDiv) statusDiv.remove();
     pendingDiv.classList.remove('pending');
+    pendingDiv.querySelectorAll('*').forEach(el => {
+      if (el.style.opacity === '0.7') el.style.opacity = '1';
+    });
     if (sendR.message && sendR.message.id) {
       pendingDiv.dataset.msgId = sendR.message.id;
       pendingDiv.dataset.msgDirection = 'outgoing';
@@ -1356,9 +1442,9 @@ $('#richFileInput').addEventListener('change', async function() {
     pendingContents.delete(placeholder);
   } catch (e) {
     pendingContents.delete(placeholder);
-    const previewEl4 = pendingDiv.querySelector('img, video');
+    const previewEl4 = pendingDiv.querySelector('img, video, audio');
     if (previewEl4) previewEl4.style.opacity = '1';
-    pendingDiv.querySelector('div:last-child').textContent = '发送失败';
+    pendingDiv.querySelector('.msg-bubble > div:last-of-type').textContent = '发送失败';
     pendingDiv.classList.add('failed');
     pendingDiv.querySelector('.msg-retry').style.display = '';
   }
@@ -1530,7 +1616,7 @@ function syncBgUI() {
 }
 
 $('#btnClearAllHistory').addEventListener('click', async () => {
-  if (!confirm('确定要清空全部聊天记录吗？此操作不可撤销。')) return;
+  if (!(await showConfirm('确定要清空全部聊天记录吗？此操作不可撤销。'))) return;
   try {
     const r = await API('/api/messages', { method: 'DELETE' });
     if (r.error) { alert('清空失败: ' + r.error); }
@@ -1539,7 +1625,7 @@ $('#btnClearAllHistory').addEventListener('click', async () => {
 
 $('#btnClearHistory').addEventListener('click', async () => {
   if (!currentConv) return;
-  if (!confirm('确定要清空该群聊的所有本地聊天记录吗？此操作不可撤销。')) return;
+  if (!(await showConfirm('确定要清空该群聊的所有本地聊天记录吗？此操作不可撤销。'))) return;
 
   try {
     const result = await API(`/api/messages/${currentConv}`, { method: 'DELETE' });
@@ -1601,8 +1687,7 @@ function onMsgContextMenu(e) {
     timestamp: this.dataset.msgTimestamp || '',
     el: this,
   };
-  const hasVideo = this.querySelector('.msg-video');
-  $('#ctxCopy').textContent = hasVideo ? '⬇ 下载视频' : '📋 复制';
+  $('#ctxCopy').innerHTML = '<img src="icons/copy.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 复制';
   $('#ctxRecall').style.display = ctxTargetMsg.direction === 'outgoing' ? '' : 'none';
   $('#ctxMultiSelect').style.display = '';
   $ctxMenu.style.display = 'block';
@@ -1623,6 +1708,14 @@ document.addEventListener('click', (e) => {
 });
 
 // ── 文件下载 ─────────────────────────────────────────
+function fileIconName(filename) {
+  const ext = (filename || '').split('.').pop().toLowerCase();
+  if (['png','jpg','jpeg','gif','bmp','webp','svg','ico'].includes(ext)) return 'image';
+  if (['mp4','avi','mov','mkv','wmv','flv','webm','ts'].includes(ext)) return 'video';
+  if (['mp3','wav','ogg','flac','aac','m4a','amr','opus'].includes(ext)) return 'music';
+  return 'documents';
+}
+
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
@@ -1636,7 +1729,7 @@ function fileIcon(filename) {
   if (['mp4','avi','mov','mkv','wmv','flv','webm','ts'].includes(ext)) return '🎬';
   if (['mp3','wav','ogg','flac','aac','m4a','amr','opus'].includes(ext)) return '🎵';
   if (['pdf','doc','docx','xls','xlsx','ppt','pptx','txt','csv'].includes(ext)) return '📃';
-  if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext)) return '📦';
+  if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext)) return '<img src="icons/memory.svg" class="svg-icon" style="width:16px;height:16px;" alt="">';
   return '📄';
 }
 
@@ -1714,8 +1807,8 @@ function addFavorite(msg) {
   saveFavorites(favs);
 }
 
-function removeFav(idx) {
-  if (!confirm('确定取消收藏这条消息吗？')) return;
+async function removeFav(idx) {
+  if (!(await showConfirm('确定取消收藏这条消息吗？'))) return;
   const favs = getFavorites();
   favs.splice(favs.length - 1 - idx, 1);
   saveFavorites(favs);
@@ -1765,30 +1858,30 @@ async function refreshStatus() {
     const info = await API('/api/system-info');
     $sc.innerHTML = `
       <div style="text-align:center;margin-bottom:12px;">
-        <span style="font-size:1.1em;font-weight:700;">🤖 NeonBotChat v26.7.4</span>
+        <span style="font-size:1.1em;font-weight:700;"><img src="icons/bot.svg" class="svg-icon" style="width:20px;height:20px;" alt=""> NeonBotChat v26.7.5</span>
       </div>
       <div class="stat-card">
-        <div class="stat-label">🖥 系统</div>
+        <div class="stat-label"><img src="icons/system.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 系统</div>
         <div class="stat-val">${escHtml(info.os)}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">🔲 CPU</div>
+        <div class="stat-label"><img src="icons/CPU.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> CPU</div>
         <div class="stat-val">${escHtml(info.cpu_model)}</div>
         <div class="stat-sub">使用率 ${info.cpu_percent}%</div>
         <div class="stat-bar"><div class="stat-bar-fill" style="width:${info.cpu_percent}%"></div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">📦 内存</div>
+        <div class="stat-label"><img src="icons/memory.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 内存</div>
         <div class="stat-val">${info.mem_used} / ${info.mem_total} GB</div>
         <div class="stat-sub">${info.mem_percent}%</div>
         <div class="stat-bar"><div class="stat-bar-fill stat-bar-mem" style="width:${info.mem_percent}%"></div></div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">⏱ 系统已运行</div>
+        <div class="stat-label"><img src="icons/timer.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 系统已运行</div>
         <div class="stat-val">${info.sys_uptime}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">🤖 Bot已运行</div>
+        <div class="stat-label"><img src="icons/bot.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> Bot已运行</div>
         <div class="stat-val">${info.bot_uptime}</div>
       </div>`;
   } catch (e) {
@@ -1802,8 +1895,8 @@ $('#favBtn').addEventListener('click', () => {
 });
 $('#btnCloseFav').addEventListener('click', () => $('#favModal').classList.remove('show'));
 $('#favModal').addEventListener('click', (e) => { if (e.target === $('#favModal')) $('#favModal').classList.remove('show'); });
-$('#btnClearFav').addEventListener('click', () => {
-  if (!confirm('确定清空全部收藏？')) return;
+$('#btnClearFav').addEventListener('click', async () => {
+  if (!(await showConfirm('确定清空全部收藏？'))) return;
   saveFavorites([]);
   renderFavList();
 });
@@ -1813,7 +1906,6 @@ $('#ctxCopy').addEventListener('click', async () => {
   $ctxMenu.style.display = 'none';
   const el = ctxTargetMsg?.el;
   const imgs = el?.querySelectorAll('.msg-image');
-  const videos = el?.querySelectorAll('.msg-video');
   if (imgs && imgs.length > 0) {
     try {
       const resp = await fetch(imgs[0].src);
@@ -1823,19 +1915,6 @@ $('#ctxCopy').addEventListener('click', async () => {
     } catch (e) {
       navigator.clipboard.writeText(imgs[0].src).catch(() => {});
       showToast('⚠ 已复制图片链接（不支持图片格式）');
-    }
-  } else if (videos && videos.length > 0) {
-    try {
-      const a = document.createElement('a');
-      a.href = videos[0].src;
-      a.download = 'video.mp4';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      showToast('⬇ 开始下载视频');
-    } catch (e) {
-      navigator.clipboard.writeText(videos[0].src).catch(() => {});
-      showToast('⚠ 下载失败，已复制链接');
     }
   } else if (ctxTargetMsg?.content) {
     navigator.clipboard.writeText(ctxTargetMsg.content).catch(() => {});
@@ -1958,7 +2037,8 @@ $('#ctxMultiSelect').addEventListener('click', () => {
 
 $('#ctxDelete').addEventListener('click', async () => {
   if (!ctxTargetMsg?.id) return;
-  if (!confirm('确定要删除这条消息吗？（仅本地删除，不影响 QQ 端）')) return;
+  $ctxMenu.style.display = 'none';
+  if (!(await showConfirm('确定要删除这条消息吗？', 'query'))) return;
   try {
     const r = await API(`/api/message/${ctxTargetMsg.id}`, { method: 'DELETE' });
     if (r.error) { alert('删除失败: ' + r.error); }
@@ -2012,7 +2092,7 @@ $('#btnCancelSelect').addEventListener('click', exitSelectMode);
 
 $('#btnBatchDelete').addEventListener('click', async () => {
   if (selectedMsgs.size === 0) return;
-  if (!confirm(`确定要删除选中的 ${selectedMsgs.size} 条消息吗？（仅本地删除）`)) return;
+  if (!(await showConfirm(`确定要删除选中的 ${selectedMsgs.size} 条消息吗？`, 'query'))) return;
   try {
     const r = await API('/api/messages/batch-delete', {
       method: 'POST',
@@ -2188,9 +2268,26 @@ function updateAccountBotName() {
   if (el) el.textContent = (botDisplayName || 'Bot').replace(/ 🤖$/, '');
 }
 
+// ── 自定义确认弹窗 ────────────────────────────────────
+function showConfirm(msg, iconName = 'warning', danger = true) {
+  return new Promise(resolve => {
+    $('#confirmMsg').textContent = msg;
+    $('#confirmIcon').innerHTML = '<img src="icons/' + iconName + '.svg" class="svg-icon" style="width:36px;height:36px;" alt="">';
+    const okBtn = $('#confirmOk');
+    okBtn.className = danger ? 'glass-btn danger' : 'glass-btn active';
+    $('#confirmDialog').classList.add('show');
+    const ok = () => { hideConfirm(); resolve(true); };
+    const cancel = () => { hideConfirm(); resolve(false); };
+    $('#confirmOk').onclick = ok;
+    $('#confirmCancel').onclick = cancel;
+    $('#confirmDialog').onclick = (e) => { if (e.target === $('#confirmDialog')) cancel(); };
+  });
+}
+function hideConfirm() { $('#confirmDialog').classList.remove('show'); }
+
 // ── 退出登录 ────────────────────────────────────────
 $('#btnLogout').addEventListener('click', async () => {
-  if (!confirm('确定要退出登录吗？')) return;
+  if (!(await showConfirm('确定要退出登录吗？'))) return;
   await API('/api/logout', { method: 'POST' });
   window.location.reload();
 });

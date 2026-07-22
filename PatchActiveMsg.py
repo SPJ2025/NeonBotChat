@@ -157,9 +157,13 @@ async def upload_group_media_by_url(
     group_openid: str,
     media_url: str,
     file_type: str = "image",
-) -> str:
+    srv_send_msg: bool = False,
+    file_name: str = "",
+) -> dict:
     """
-    通过 URL 上传富媒体到 QQ 服务器，返回 file_info
+    通过 URL 上传富媒体到 QQ 服务器
+    srv_send_msg=True 时自动发送到群，返回完整结果（含消息 ID）
+    srv_send_msg=False 时返回 {"file_info": "..."}
     """
     if file_type not in MEDIA_TYPE:
         raise ValueError(f"file_type 必须是 {list(MEDIA_TYPE.keys())}，收到: {file_type}")
@@ -175,7 +179,12 @@ async def upload_group_media_by_url(
     payload = {
         "file_type": MEDIA_TYPE[file_type],
         "url": media_url,
+        "srv_send_msg": srv_send_msg,
     }
+    if file_name:
+        payload["file_name"] = file_name
+
+    _log.info(f"📤 [upload_by_url] 请求体: {json.dumps(payload, ensure_ascii=False)}")
 
     async with aiohttp.ClientSession() as session:
         async with session.post(url, headers=headers, json=payload) as resp:
@@ -184,11 +193,14 @@ async def upload_group_media_by_url(
                 _log.error(f"📤 URL上传失败 ({resp.status}): {text}")
                 raise RuntimeError(f"URL上传失败: {text}")
             result = json.loads(text)
+            if srv_send_msg:
+                _log.info(f"📤 上传并发送成功 file_type={file_type} id={result.get('id', '?')}")
+                return result  # 返回完整结果，含 id
             file_info = result.get("file_info")
             if not file_info:
                 raise RuntimeError(f"上传成功但未返回 file_info: {result}")
             _log.info(f"📤 URL上传成功 file_type={file_type} url={media_url[:60]}... file_info={file_info[:30]}...")
-            return file_info
+            return {"file_info": file_info}
 
 
 async def upload_group_media(
