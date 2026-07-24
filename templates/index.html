@@ -12,7 +12,7 @@
 button .svg-icon, .conv-item .svg-icon { opacity: 1; }
 body.light .svg-icon { filter: invert(0); }
 .ctx-item.danger .svg-icon { filter: none; }
-img.svg-icon[src*="delete.svg"], img.svg-icon[src*="chat.svg"], img.svg-icon[src*="logout.svg"] { filter: none !important; }
+img.svg-icon[src*="delete.svg"], img.svg-icon[src*="chat.svg"], img.svg-icon[src*="logout.svg"], img.svg-icon[src*="query.svg"], img.svg-icon[src*="warning.svg"], img.svg-icon[src*="error.svg"] { filter: none !important; }
 
 /* ── Reset & Base ─────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -679,7 +679,7 @@ body.light .msg-sender:not(.role-群主):not(.role-管理员):not(.sender-self) 
       <div class="settings-tab" id="tab-about" style="display:none; text-align:center;">
         <h3>关于</h3>
         <p style="margin:12px 0;"><img src="icons/bot.svg" class="svg-icon" style="width:48px;height:48px;" alt=""></p>
-        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.5</p>
+        <p style="font-size:1.2em;font-weight:700;margin:8px 0;">NeonBot v26.7.6</p>
         <a href="/api/readme" target="_blank" style="color:var(--accent);font-size:0.9em;display:block;margin-top:16px;"><img src="icons/documents.svg" class="svg-icon" style="width:14px;height:14px;" alt=""> 阅读 README.md</a>
         <p style="color:var(--text-dim);font-size:0.85em;margin-top:12px;">Copyright © 2026 Neon. All Rights Reserved.</p>
       </div>
@@ -1089,7 +1089,7 @@ function appendMessage(msg, scroll) {
         ? `<div class="msg-sender${msg.direction === 'outgoing' ? ' sender-self' : ''}${msg.member_role ? ' role-' + msg.member_role : ''}">${msg.direction === 'outgoing' ? icon('bot', 14) + ' ' : ''}${msg.sender_avatar && msg.direction !== 'outgoing' ? `<img src="${escHtml(msg.sender_avatar)}" onerror="this.style.display='none'" alt="" onclick="event.stopPropagation();viewImage('${escHtml(msg.sender_avatar)}')" style="cursor:pointer;">` : ''}${msg.direction === 'outgoing' ? escHtml(msg.sender_name.replace(/ 🤖$/, '')) : fmtBotMarker(escHtml(msg.sender_name))}${roleBadge(msg.member_role)}${msg.direction === 'outgoing' && getBotAvatar() ? `<img src="${escHtml(getBotAvatar())}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;cursor:pointer;margin-left:4px;" onerror="this.style.display='none'" onclick="event.stopPropagation();viewImage('${escHtml(getBotAvatar())}')">` : ''}</div>`
         : ''}
       ${attachHtml}
-      ${msg.quoted_content ? `<div class="quote-box"><div class="quote-sender">${escHtml(msg.quoted_sender || '未知用户')}</div><div class="quote-content">${escHtmlWithBr(msg.quoted_content)}</div></div>` : ''}
+      ${msg.quoted_content ? `<div class="quote-box"><div class="quote-sender">${fmtBotMarker(escHtml(msg.quoted_sender || '未知用户'))}</div><div class="quote-content">${escHtmlWithBr(msg.quoted_content)}</div></div>` : ''}
       ${msg.content && !placeholders.includes(msg.content) && !msg.content.startsWith('[文件]') ? `<div class="${isPlaceholder ? 'media-placeholder' : ''}">${(msg.msg_type == 2) ? renderMarkdown(msg.content) : escHtmlWithBr(msg.content)}</div>` : (isPlaceholder ? `<div class="media-placeholder">${escHtmlWithBr(msg.content)}</div>` : '')}
     </div>
   `;
@@ -1165,20 +1165,20 @@ async function sendMessage(retryMsgId) {
 
   const tempId = isRetry ? retryMsgId : `pending_${++pendingId}`;
 
-  // 立即在 UI 显示气泡（乐观更新）
+  // 立即在 UI 显示气泡
+  const fakeMsg = {
+    id: 0,
+    pending_id: tempId,
+    conversation_id: currentConv,
+    sender_name: botDisplayName || 'Bot',
+    content: content,
+    direction: 'outgoing',
+    msg_type: msgType,
+    timestamp: new Date().toISOString(),
+    sender_avatar: '',
+  };
+  appendPendingMessage(fakeMsg);
   if (!isRetry) {
-    const fakeMsg = {
-      id: 0,
-      pending_id: tempId,
-      conversation_id: currentConv,
-      sender_name: botDisplayName || 'Bot',
-      content: content,
-      direction: 'outgoing',
-      msg_type: msgType,
-      timestamp: new Date().toISOString(),
-      sender_avatar: '',
-    };
-    appendPendingMessage(fakeMsg);
     $msgInput.value = '';
     $msgInput.style.height = 'auto';
     $('#mdCheckbox').checked = false;
@@ -1357,6 +1357,26 @@ $('#richFileInput').addEventListener('change', async function() {
   if (!currentConv) { showToast('⚠ 请先选择一个群聊'); return; }
 
   const mediaType = richMediaType;
+  const fileSizeMB = file.size / (1024 * 1024);
+  const softLimits = { image: 20, video: 30, voice: 200, file: 200 };
+  const hardLimit = 200;
+
+  // 硬限制检查
+  if (fileSizeMB > hardLimit) {
+    this.value = '';
+    showConfirm('当前媒体大小已超过硬限制（200MB），无法发送', 'error', false, false);
+    return;
+  }
+
+  // 软限制检查
+  const softLimit = softLimits[mediaType] || 200;
+  if (fileSizeMB > softLimit) {
+    const typeName = { image: '图片', video: '视频', voice: '语音', file: '文件' }[mediaType] || '媒体';
+    if (!(await showConfirm(`当前${typeName}大小已超过软限制（${softLimit}MB），继续发送将转为文件发送（当前 QQ API 不稳定，文件发送几乎 100% 失败，你确认要继续发送吗？）`, 'query', false))) {
+      this.value = '';
+      return;
+    }
+  }
   const placeholderMap = {image:'[图片]', video:'[视频]', voice:'[语音]', file:'[文件]'};
   const placeholder = placeholderMap[mediaType] || '[图片]';
   this.value = '';
@@ -1858,7 +1878,7 @@ async function refreshStatus() {
     const info = await API('/api/system-info');
     $sc.innerHTML = `
       <div style="text-align:center;margin-bottom:12px;">
-        <span style="font-size:1.1em;font-weight:700;"><img src="icons/bot.svg" class="svg-icon" style="width:20px;height:20px;" alt=""> NeonBotChat v26.7.5</span>
+        <span style="font-size:1.1em;font-weight:700;"><img src="icons/bot.svg" class="svg-icon" style="width:20px;height:20px;" alt=""> NeonBotChat v26.7.6</span>
       </div>
       <div class="stat-card">
         <div class="stat-label"><img src="icons/system.svg" class="svg-icon" style="width:16px;height:16px;" alt=""> 系统</div>
@@ -2269,12 +2289,13 @@ function updateAccountBotName() {
 }
 
 // ── 自定义确认弹窗 ────────────────────────────────────
-function showConfirm(msg, iconName = 'warning', danger = true) {
+function showConfirm(msg, iconName = 'warning', danger = true, showCancel = true) {
   return new Promise(resolve => {
     $('#confirmMsg').textContent = msg;
     $('#confirmIcon').innerHTML = '<img src="icons/' + iconName + '.svg" class="svg-icon" style="width:36px;height:36px;" alt="">';
     const okBtn = $('#confirmOk');
     okBtn.className = danger ? 'glass-btn danger' : 'glass-btn active';
+    $('#confirmCancel').style.display = showCancel ? '' : 'none';
     $('#confirmDialog').classList.add('show');
     const ok = () => { hideConfirm(); resolve(true); };
     const cancel = () => { hideConfirm(); resolve(false); };

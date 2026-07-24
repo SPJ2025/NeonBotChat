@@ -55,7 +55,7 @@ LOGIN_HTML = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="UTF-8"><title>NeonBotChat - 登录</title>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
-.svg-icon { vertical-align: middle; }
+.svg-icon { vertical-align: middle; filter: invert(1); }
 body { font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Microsoft YaHei",sans-serif;
   background: #1a1b1e; color: #e4e5e7; display: flex; align-items: center; justify-content: center;
   min-height: 100vh; }
@@ -281,6 +281,10 @@ async def api_send_media(request: Request):
     try:
         from PatchActiveMsg import upload_group_media_by_url
         result = await upload_group_media_by_url(conv_id, file_url, file_type=file_type, srv_send_msg=True, file_name=file_name)
+        # 检查 QQ API 是否返回了错误
+        if result.get("code") or result.get("err_code"):
+            err_msg = result.get("message", "") or result.get("msg", "") or "未知错误"
+            return JSONResponse({"error": f"发送失败：{err_msg}"}, status_code=400)
 
         # 保存到本地数据库
         import database as _db, json as _json
@@ -524,6 +528,10 @@ async def api_send(request: Request):
     # 2) 调用 QQ API 发送
     try:
         result = await send_group_msg(conv_id, content, msg_type=msg_type)
+        # 检查 QQ API 是否返回了错误
+        if result.get("code") or result.get("err_code") or result.get("error"):
+            err_msg = result.get("message", "") or result.get("msg", "") or result.get("error", "") or "未知错误"
+            return JSONResponse({"error": f"发送失败：{err_msg}"}, status_code=400)
     except Exception as e:
         return JSONResponse({"error": f"发送失败: {str(e)}"}, status_code=500)
 
